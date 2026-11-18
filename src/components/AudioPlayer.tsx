@@ -1,0 +1,898 @@
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { supabase as _supabase } from '@/utils/supabase';
+
+interface AudioPlayerProps {
+  artistHandle?: string;
+  initialTracks?: any[];
+  tier?: string;
+}
+
+const FALLBACK_COVER_ART =
+  'https://27593217-482041110881488807.preview.editmysite.com/uploads/2/7/5/9/27593217/box-logo_orig.jpg';
+
+
+const platformColors: Record<string, string> = {
+  'Apple Music': '#fa233b',
+  'Spotify': '#1db954',
+  'Tidal': '#00ffff',
+  'YouTube': '#ff0000',
+  'Pandora': '#0095ff'
+};
+
+export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free' }: AudioPlayerProps) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  const [currentTier, setCurrentTier] = useState<string>(tier);
+
+  useEffect(() => {
+    const checkDevTier = () => {
+      const devTier = typeof window !== 'undefined' ? localStorage.getItem('mm_dev_tier') : null;
+      if (devTier && devTier !== 'logged_out') {
+        setCurrentTier(devTier);
+      } else {
+        setCurrentTier(tier);
+      }
+    };
+
+    checkDevTier();
+
+    window.addEventListener('mm_tier_changed', checkDevTier);
+    return () => window.removeEventListener('mm_tier_changed', checkDevTier);
+  }, [tier]);
+
+  const [masterPlaylist, setMasterPlaylist] = useState<any[]>([]);
+  const [activePlaylist, setActivePlaylist] = useState<any[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [searchActive, setSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [streamModalOpen, setStreamModalOpen] = useState(false);
+  const [isShuffled, setIsShuffled] = useState(false);
+  const [isRepeated, setIsRepeated] = useState(false);
+  const [subscribeBoxOpen, setSubscribeBoxOpen] = useState(false);
+  const [subscriberEmail, setSubscriberEmail] = useState('');
+  const [submittingFan, setSubmittingFan] = useState(false);
+
+  // Smart Shuffle Pool State
+  const [shufflePool, setShufflePool] = useState<number[]>([]);
+
+  // Rotating Stream Button State
+  const [streamDisplayHtml, setStreamDisplayHtml] = useState<{ text: string; color: string }>({ text: 'STREAM NOW', color: '#ffffff' });
+
+  // Album / Project View State
+  const [viewMode, setViewMode] = useState<'tracks' | 'albums'>('tracks');
+  const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
+
+  // Buy Light Box Modal State
+  const [buyModalOpen, setBuyModalOpen] = useState(false);
+  const [trackToBuy, setTrackToBuy] = useState<any>(null);
+
+  const currentTrack = activePlaylist[currentIndex] || null;
+
+  useEffect(() => {
+    if (initialTracks && initialTracks.length > 0) {
+      processTracks(initialTracks);
+    } else {
+      initPlayer();
+    }
+  }, [artistHandle, initialTracks]);
+
+  useEffect(() => {
+    if (!currentTrack) {
+      setStreamDisplayHtml({ text: 'STREAM NOW', color: '#ffffff' });
+      return;
+    }
+
+    const availablePlatforms: { name: string; color: string }[] = [];
+    if (currentTrack.apple_music_url?.trim()) availablePlatforms.push({ name: 'Apple Music', color: platformColors['Apple Music'] });
+    if (currentTrack.spotify_url?.trim()) availablePlatforms.push({ name: 'Spotify', color: platformColors['Spotify'] });
+    if (currentTrack.tidal_url?.trim()) availablePlatforms.push({ name: 'Tidal', color: platformColors['Tidal'] });
+    if (currentTrack.youtube_url?.trim()) availablePlatforms.push({ name: 'YouTube', color: platformColors['YouTube'] });
+    if (currentTrack.pandora_url?.trim()) availablePlatforms.push({ name: 'Pandora', color: platformColors['Pandora'] });
+
+    if (availablePlatforms.length === 0) {
+      setStreamDisplayHtml({ text: 'STREAM NOW', color: '#ffffff' });
+      return;
+    }
+
+    const slides = [{ text: 'STREAM NOW', color: '#ffffff' }, ...availablePlatforms.map(p => ({ text: p.name, color: p.color }))];
+    let slideIndex = 0;
+    setStreamDisplayHtml(slides[0]);
+
+    const interval = setInterval(() => {
+      slideIndex = (slideIndex + 1) % slides.length;
+      setStreamDisplayHtml(slides[slideIndex]);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [currentTrack?.id]);
+
+  useEffect(() => {
+    if (isShuffled) {
+      resetShufflePool(currentIndex, activePlaylist.length);
+    }
+  }, [isShuffled, activePlaylist]);
+
+  function resetShufflePool(currentIdx: number, totalTracks: number) {
+    const pool: number[] = [];
+    for (let i = 0; i < totalTracks; i++) {
+      if (i !== currentIdx) {
+        pool.push(i);
+      }
+    }
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    setShufflePool(pool);
+  }
+
+  function safePlay() {
+    if (!audioRef.current) return;
+    const playPromise = audioRef.current.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.error('Audio playback error:', err);
+        }
+      });
+    }
+  }
+
+  function processTracks(data: any[]) {
+    const formattedTracks = data.map(track => {
+      let audioUrl = track.audio_file_path;
+      if (audioUrl && !audioUrl.startsWith('http')) {
+        audioUrl = _supabase.storage.from('v2-audio-vault').getPublicUrl(audioUrl).data.publicUrl;
+      }
+
+      let artUrl = track.artwork_url;
+      if (track.artwork_file_path && !track.artwork_file_path.startsWith('http')) {
+        artUrl = _supabase.storage.from('v2-cover-art').getPublicUrl(track.artwork_file_path).data.publicUrl;
+      }
+
+      return {
+        ...track,
+        audio_file_path: audioUrl,
+        artwork_url: artUrl
+      };
+    });
+
+                let filteredData = formattedTracks.filter((track) => !track.deleted_at);
+
+    if (artistHandle && (!initialTracks || initialTracks.length === 0)) {
+
+      const cleanSlug = artistHandle.toLowerCase().trim();
+      filteredData = formattedTracks.filter(track => {
+        const textHandle = track.artist_handle ? track.artist_handle.toLowerCase().trim() : '';
+        return textHandle === cleanSlug;
+      });
+    }
+
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetTrackParam = urlParams.get('track');
+
+    if (targetTrackParam) {
+      const trackIndex = filteredData.findIndex(t => String(t.id) === String(targetTrackParam));
+      if (trackIndex !== -1) {
+        const sharedTrack = filteredData.splice(trackIndex, 1)[0];
+        filteredData.unshift(sharedTrack);
+      }
+    }
+
+    setMasterPlaylist(filteredData);
+    setActivePlaylist(filteredData);
+    if (filteredData.length > 0) {
+      loadTrack(filteredData[0], 0);
+      if (isShuffled) resetShufflePool(0, filteredData.length);
+    } else {
+      setCurrentIndex(0);
+      setCurrentTime(0);
+      setDuration(0);
+    }
+  }
+
+        async function initPlayer() {
+    let query = _supabase
+      .from('tracks_pro')
+      .select('*')
+      .is('deleted_at', null)
+      .order('track_order', { ascending: true, nullsFirst: false });
+
+    if (artistHandle) {
+      query = query.ilike('artist_handle', artistHandle.trim());
+    }
+
+    const { data, error } = await query;
+
+    if (!error && data) {
+      processTracks(data);
+    }
+  }
+
+
+
+  function loadTrack(track: any, index: number) {
+    if (!track) return;
+    setCurrentIndex(index);
+    setSubscribeBoxOpen(false);
+    if (audioRef.current && track?.audio_file_path) {
+      audioRef.current.src = track.audio_file_path;
+      audioRef.current.load();
+    }
+  }
+
+  function togglePlay() {
+    if (!audioRef.current || !currentTrack?.audio_file_path) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      safePlay();
+      setIsPlaying(true);
+    }
+  }
+
+  function handleTimeUpdate() {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+      setDuration(audioRef.current.duration || 0);
+    }
+  }
+
+  function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
+    const newTime = Number(e.target.value);
+    setCurrentTime(newTime);
+    if (audioRef.current) {
+      audioRef.current.currentTime = newTime;
+    }
+  }
+
+  function nextTrack() {
+    if (activePlaylist.length === 0) return;
+
+    let nextIdx: number;
+
+    if (isShuffled) {
+      let currentPool = [...shufflePool];
+      if (currentPool.length === 0) {
+        resetShufflePool(currentIndex, activePlaylist.length);
+        currentPool = [...shufflePool];
+      }
+      const popped = currentPool.pop();
+      nextIdx = popped !== undefined ? popped : (currentIndex + 1) % activePlaylist.length;
+      setShufflePool(currentPool);
+    } else {
+      nextIdx = (currentIndex + 1) % activePlaylist.length;
+    }
+
+    loadTrack(activePlaylist[nextIdx], nextIdx);
+    if (isPlaying) safePlay();
+  }
+
+  function prevTrack() {
+    if (activePlaylist.length === 0) return;
+    const prevIdx = (currentIndex - 1 + activePlaylist.length) % activePlaylist.length;
+    loadTrack(activePlaylist[prevIdx], prevIdx);
+    if (isPlaying) safePlay();
+  }
+
+  const lastBackClickRef = useRef<number>(0);
+
+  function handlePreviousClick() {
+    const now = Date.now();
+    const timeSinceLastClick = now - lastBackClickRef.current;
+    const doubleClickThreshold = 350;
+
+    if (lastBackClickRef.current && timeSinceLastClick < doubleClickThreshold) {
+      prevTrack();
+      lastBackClickRef.current = 0;
+    } else {
+      if (audioRef.current && audioRef.current.currentTime > 3) {
+        audioRef.current.currentTime = 0;
+        if (isPlaying) safePlay();
+      } else {
+        prevTrack();
+      }
+      lastBackClickRef.current = now;
+    }
+  }
+
+  function handleTrackEnded() {
+    if (isRepeated && audioRef.current) {
+      audioRef.current.currentTime = 0;
+      safePlay();
+    } else {
+      nextTrack();
+    }
+  }
+
+  function formatTime(secs: number) {
+    if (isNaN(secs)) return '0:00';
+    const minutes = Math.floor(secs / 60);
+    const seconds = Math.floor(secs % 60);
+    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+  }
+
+  async function handleFanSubscribe(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    if (!subscriberEmail.trim() || submittingFan) return;
+
+        setSubmittingFan(true);
+    try {
+      const activeHandle = (artistHandle || currentTrack?.artist_handle || '').trim().toLowerCase();
+      if (!activeHandle) {
+        alert('Unable to determine which artist store this fan signup belongs to.');
+        setSubmittingFan(false);
+        return;
+      }
+
+      const res = await fetch('/api/fans/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: subscriberEmail.trim(),
+          artistHandle: activeHandle,
+          sourceGenre: currentTrack?.genre || 'Untagged',
+          sourceTrackId: currentTrack?.id ? String(currentTrack.id) : null,
+          sourceTrackTitle: currentTrack?.title || null,
+        }),
+      });
+
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Could not subscribe right now.');
+      } else {
+        alert(`You're locked in with @${activeHandle}!`);
+        setSubscriberEmail('');
+        setSubscribeBoxOpen(false);
+      }
+    } catch (err) {
+      console.error('Fan subscribe error:', err);
+      alert('Network error. Please try again.');
+    } finally {
+      setSubmittingFan(false);
+    }
+  }
+
+  function handleShareTrack(track: any, e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
+    const basePath = artistHandle ? window.location.pathname : `/artist/workspace`;
+    const shareUrl = `${window.location.origin}${basePath}?track=${track.id}`;
+    navigator.clipboard.writeText(shareUrl);
+    alert(`Copied share link for "${track.title}"!`);
+  }
+
+  function handleBuyClick(track: any) {
+    if (!track || !track.id) return;
+    setTrackToBuy(track);
+    setSubscribeBoxOpen(false);
+
+        if (track.album_name) {
+      setBuyModalOpen(true);
+    } else {
+      executeCheckout({
+        itemType: 'single',
+        trackId: String(track.id),
+        artistHandle: artistHandle || track.artist_handle,
+        price: track.price,
+        title: track.title,
+      });
+    }
+
+  }
+
+  async function executeCheckout(payload: { itemType: 'single' | 'album'; trackId?: string; albumName?: string; artistHandle?: string; price: number | string; title?: string }) {
+    try {
+      const response = await fetch('/api/checkout/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: [payload] })
+      });
+      const responseText = await response.text();
+      let session;
+      try {
+        session = JSON.parse(responseText);
+      } catch (parseErr) {
+        console.error('Non-JSON server response:', responseText);
+        alert('Server error: received invalid response from checkout route.');
+        return;
+      }
+      if (session.url) window.location.href = session.url;
+      else alert(session.error || 'Could not initiate checkout.');
+    } catch (err) {
+      console.error('Stripe checkout error:', err);
+      alert('Network error initiating checkout.');
+    }
+  }
+
+    const trackIncludesAlbum = (track: any, albumName: string) =>
+    Boolean(track.album_name) &&
+    String(track.album_name)
+      .split(',')
+      .map((s: string) => s.trim())
+      .includes(albumName);
+
+  const uniqueAlbums = Array.from(
+    new Set(
+      masterPlaylist.flatMap(t =>
+        t.album_name
+          ? String(t.album_name)
+              .split(',')
+              .map((s: string) => s.trim())
+              .filter(Boolean)
+          : []
+      )
+    )
+  ).sort((a, b) => {
+    const indexA = masterPlaylist.find(t => trackIncludesAlbum(t, a))?.album_index ?? 9999;
+    const indexB = masterPlaylist.find(t => trackIncludesAlbum(t, b))?.album_index ?? 9999;
+    return indexA - indexB;
+  });
+
+
+  return (
+    <div className="player-card bg-[#121212] text-white w-full max-w-[480px] h-[100dvh] p-4 flex flex-col justify-between overflow-hidden box-border mx-auto relative">
+      <div className="player-header text-center text-[11px] tracking-[2px] text-[#666] uppercase pt-[2px]">
+        {artistHandle ? `${artistHandle.toUpperCase()} STORE` : 'Music Market'}
+      </div>
+
+      {/* Fixed-Height Search Bar Wrapper to prevent vertical shifting */}
+      <div className={`search-wrapper relative w-full my-[6px] h-[36px] flex-shrink-0 ${searchActive ? 'active' : ''}`}>
+        {!searchActive ? (
+          <div
+            className="search-collapsed-btn absolute left-0 top-0 w-[36px] h-[36px] bg-[#1a1a1a] border border-[#333] rounded-[8px] flex items-center justify-center cursor-pointer hover:border-[#ff8c00]"
+            onClick={() => { setSearchActive(true); setSubscribeBoxOpen(false); }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff8c00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </div>
+        ) : (
+          <div className="search-input-container absolute left-0 top-0 w-full z-20">
+            <input
+              type="text"
+              className="w-full h-[36px] px-[14px] bg-black border border-[#ff8c00] rounded-[8px] text-white text-[13px] outline-none shadow-[0_0_0_2px_rgba(255,140,0,0.2)]"
+              placeholder="Search catalog by title, artist, or genre..."
+              value={searchQuery}
+              onChange={(e) => {
+                const q = e.target.value.toLowerCase();
+                setSearchQuery(q);
+                setSearchResults(masterPlaylist.filter(t =>
+                  t.title.toLowerCase().includes(q) ||
+                  t.artist_handle?.toLowerCase().includes(q) ||
+                  t.genre?.toLowerCase().includes(q)
+                ));
+              }}
+              autoFocus
+              onBlur={() => { setTimeout(() => setSearchActive(false), 200); }}
+            />
+          </div>
+        )}
+
+        {searchActive && searchResults.length > 0 && (
+          <div className="search-results-dropdown absolute top-[calc(100%+4px)] left-0 w-full bg-[#161616] border border-[#2e2e2e] rounded-[8px] max-h-[240px] overflow-y-auto z-50 shadow-2xl">
+            {searchResults.map((track) => (
+              <div
+                key={track.id}
+                className="search-result-item flex items-center gap-[10px] p-[8px_12px] border-b border-[#1f1f1f] cursor-pointer hover:bg-[#262626]"
+                onClick={() => {
+                  loadTrack(track, masterPlaylist.findIndex(t => t.id === track.id));
+                  setSearchActive(false);
+                }}
+              >
+                                <img
+                  src={track.artwork_url || FALLBACK_COVER_ART}
+                  className="w-[32px] h-[32px] object-cover rounded-[4px] bg-[#222]"
+                  alt=""
+                />
+
+                <div className="flex flex-col overflow-hidden flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[12px] font-bold text-white truncate">{track.title}</span>
+                    {track.genre && (
+                      <span className="text-[9px] bg-[#ff8c00]/15 text-[#ff8c00] font-bold px-1.5 py-0.2 rounded border border-[#ff8c00]/30">
+                        {track.genre}
+                      </span>
+                    )}
+                  </div>
+                                    <span className="text-[11px] text-[#ff8c00] truncate">
+                    @{artistHandle || track.artist_handle}
+                  </span>
+
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+            {/* Artwork */}
+      <div className="artwork-container w-[150px] h-[150px] mx-auto rounded-[12px] overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.6)] flex items-center justify-center bg-[#1a1a1a] flex-shrink-0">
+        <img
+          src={currentTrack?.artwork_url || FALLBACK_COVER_ART}
+          alt="Artwork"
+          className="w-full h-full object-cover"
+        />
+      </div>
+
+
+      {/* Track Info & Genre Tag */}
+      <div className="track-info text-center mb-[4px] flex-shrink-0">
+        <h3 className="text-[15px] font-bold text-white truncate m-[0_0_2px_0]">{currentTrack?.title || 'No tracks uploaded yet'}</h3>
+        <div className="flex items-center justify-center gap-2 m-0">
+                    <p className="text-[11px] text-[#ff8c00] font-medium m-0">
+            {artistHandle ? `@${artistHandle}` : (currentTrack?.artist_handle ? `@${currentTrack.artist_handle}` : 'Music Market')}
+          </p>
+
+          {currentTrack?.genre && (
+            <span className="text-[10px] bg-[#ff8c00]/15 text-[#ff8c00] font-bold px-2 py-0.2 rounded-md border border-[#ff8c00]/30">
+              {currentTrack.genre}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="progress-container w-full mb-[6px] flex-shrink-0">
+        <input
+          type="range"
+          className="progress-bar w-full h-[5px] bg-[#333] rounded-[3px] outline-none cursor-pointer accent-[#ff8c00]"
+          value={currentTime}
+          min={0}
+          max={duration || 100}
+          step={0.1}
+          onChange={handleSeek}
+        />
+        <div className="time-info flex justify-between text-[11px] text-[#888] mt-[3px]">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+      </div>
+
+      {/* Action Row */}
+      <div className="subscribe-container flex-shrink-0">
+        {!subscribeBoxOpen ? (
+          <div className="action-section flex gap-[10px] mb-[6px]">
+            <button className="main-sub-btn bg-[#ff8c00] text-black font-bold p-[8px] rounded-[10px] flex-1 text-[12px] hover:bg-[#e07b00]" onClick={() => setSubscribeBoxOpen(true)}>
+              BECOME A FAN
+            </button>
+
+            {currentTier !== 'free' && currentTrack?.id && (currentTrack.apple_music_url || currentTrack.spotify_url || currentTrack.tidal_url || currentTrack.youtube_url || currentTrack.pandora_url) && (
+              <button className="stream-trigger-btn bg-[#2a2a2a] text-white border border-[#444] p-[8px_12px] font-bold rounded-[10px] flex-1 text-[12px] hover:border-[#ff8c00]" onClick={() => { setStreamModalOpen(true); setSubscribeBoxOpen(false); }}>
+                <span style={{ color: streamDisplayHtml.color, transition: 'color 0.3s ease' }}>{streamDisplayHtml.text}</span>
+              </button>
+            )}
+
+            {currentTrack?.price && Number(currentTrack.price) > 0 && (
+              <button
+                className="buy-trigger-btn bg-[#1b3a2b] text-[#2ecc71] border border-[#27ae60] p-[8px_12px] font-bold rounded-[10px] flex-1 text-[12px] flex items-center justify-center gap-[6px] cursor-pointer hover:border-[#2ecc71]"
+                onClick={() => handleBuyClick(currentTrack)}
+              >
+                <span>Buy:</span> <span>${currentTrack.price}</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          <form onSubmit={handleFanSubscribe} className="sub-form flex gap-[10px] mb-[6px]">
+            <input
+              type="email"
+              required
+              className="flex-1 p-[8px] rounded-[10px] border border-[#444] bg-[#1a1a1a] text-white text-[13px] outline-none focus:border-[#ff8c00]"
+              placeholder="Enter your email..."
+              value={subscriberEmail}
+              onChange={(e) => setSubscriberEmail(e.target.value)}
+            />
+            <button
+              type="submit"
+              disabled={submittingFan}
+              className="bg-[#ff8c00] text-black border-none p-[0_14px] font-bold rounded-[10px] text-[12px] cursor-pointer disabled:opacity-50"
+            >
+              {submittingFan ? '...' : 'Join'}
+            </button>
+            <button
+              type="button"
+              className="bg-[#2a2a2a] text-[#aaa] border border-[#444] p-[0_10px] font-bold rounded-[10px] text-[12px] cursor-pointer hover:text-white"
+              onClick={() => setSubscribeBoxOpen(false)}
+              title="Cancel"
+            >
+              ✕
+            </button>
+          </form>
+        )}
+      </div>
+
+      {/* Playlist / Albums Navigation Drawer */}
+      <div className="inline-playlist-section bg-[#161616] border border-[#262626] rounded-[12px] p-[8px] mb-[8px] flex-1 min-h-[80px] overflow-hidden flex flex-col">
+        {currentTier !== 'free' && uniqueAlbums.length > 0 && (
+          <div className="flex items-center gap-2 mb-2 pb-1 border-b border-[#222]">
+            <button
+              onClick={() => { setViewMode('tracks'); setActivePlaylist(masterPlaylist); setSelectedAlbum(null); }}
+              className={`text-[10px] font-bold px-2.5 py-1 rounded-md cursor-pointer transition-all ${viewMode === 'tracks' ? 'bg-[#ff8c00] text-black' : 'bg-[#202020] text-[#888] hover:text-white'}`}
+            >
+              All Tracks
+            </button>
+            <button
+              onClick={() => setViewMode('albums')}
+              className={`text-[10px] font-bold px-2.5 py-1 rounded-md cursor-pointer transition-all ${viewMode === 'albums' ? 'bg-[#ff8c00] text-black' : 'bg-[#202020] text-[#888] hover:text-white'}`}
+            >
+              Albums / Projects ({uniqueAlbums.length})
+            </button>
+            {selectedAlbum && (
+              <span className="text-[10px] text-[#ff8c00] truncate ml-auto">Proj: {selectedAlbum}</span>
+            )}
+          </div>
+        )}
+
+        <div className="inline-tracks-list flex flex-col gap-[6px] overflow-y-auto flex-1">
+          {currentTier !== 'free' && viewMode === 'albums' && !selectedAlbum ? (
+                                   <div className="space-y-2">
+              {uniqueAlbums.map((albumName, idx) => {
+                const albumTracks = masterPlaylist.filter(t => trackIncludesAlbum(t, albumName));
+                const albumThumb =
+                  albumTracks.find(t => t.artwork_url)?.artwork_url || FALLBACK_COVER_ART;
+
+
+                return (
+                  <div
+                    key={idx}
+                    className="bg-[#202020] p-2.5 rounded-[8px] border border-[#2e2e2e] cursor-pointer hover:border-[#ff8c00] flex items-center justify-between gap-3"
+                    onClick={() => {
+                      const sortedAlbumTracks = [...albumTracks].sort((a, b) => {
+                        return (a.album_order ?? 99) - (b.album_order ?? 99);
+                      });
+                      setActivePlaylist(sortedAlbumTracks);
+                      setSelectedAlbum(albumName);
+                      setViewMode('tracks');
+                      if (sortedAlbumTracks.length > 0) {
+                        loadTrack(sortedAlbumTracks[0], 0);
+                        setIsPlaying(true);
+                        safePlay();
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img
+                        src={albumThumb}
+                        alt={albumName}
+                        className="w-[34px] h-[34px] rounded-[5px] object-cover flex-shrink-0 border border-[#333]"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-white truncate">{albumName}</div>
+                        <div className="text-[10px] text-[#888]">{albumTracks.length} Track{albumTracks.length === 1 ? '' : 's'}</div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-[#ff8c00] font-bold flex-shrink-0">Play Project &rarr;</span>
+                  </div>
+                );
+              })}
+            </div>
+
+          ) : activePlaylist.length === 0 ? (
+            <div className="text-center text-[#666] text-[12px] py-6">
+              {artistHandle ? "No tracks added to this store yet." : "No tracks found."}
+            </div>
+          ) : (
+            activePlaylist.map((track, idx) => (
+              <div
+                key={track.id}
+                className={`playlist-item bg-[#202020] p-[8px_12px] rounded-[8px] flex items-center justify-between gap-[10px] cursor-pointer border ${idx === currentIndex ? 'border-[#ff8c00] bg-[#2a1f12]' : 'border-[#2e2e2e]'}`}
+                onClick={() => { loadTrack(track, idx); setIsPlaying(true); safePlay(); }}
+              >
+                <div className="flex items-center gap-[10px] overflow-hidden flex-1">
+                                    <img
+                    src={track.artwork_url || FALLBACK_COVER_ART}
+                    className="w-[32px] h-[32px] rounded-[5px] object-cover flex-shrink-0"
+                    alt=""
+                  />
+
+                  <div className="playlist-item-info flex-1 overflow-hidden">
+                    <div className="flex items-center gap-2">
+                      <div className="playlist-item-title text-[12px] font-bold text-white truncate">{track.title}</div>
+                      {track.genre && (
+                        <span className="text-[9px] bg-[#ff8c00]/15 text-[#ff8c00] font-bold px-1.5 py-0.2 rounded border border-[#ff8c00]/30 flex-shrink-0">
+                          {track.genre}
+                        </span>
+                      )}
+                    </div>
+                                        <div className="playlist-item-artist text-[11px] text-[#ff8c00] truncate">
+                      @{artistHandle || track.artist_handle}
+                    </div>
+
+                  </div>
+                </div>
+
+                <button
+                  onClick={(e) => handleShareTrack(track, e)}
+                  className="px-2.5 py-1 rounded-[6px] bg-[#1a1a1a] border border-[#333] hover:border-[#ff8c00] text-[#aaa] hover:text-white text-[10px] font-bold cursor-pointer transition-all flex-shrink-0"
+                  title="Copy Share Link"
+                >
+                  Share
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Player Controls */}
+      <div className="controls flex justify-between items-center pb-[2px] flex-shrink-0">
+        <button
+          className={`w-[38px] h-[38px] rounded-full flex items-center justify-center transition-all ${isShuffled ? 'text-[#ff8c00] bg-[#2a1f12] border border-[#ff8c00]' : 'bg-[#1e1e1e] text-[#aaa] hover:bg-[#2e2e2e] hover:text-white'}`}
+          onClick={() => { setIsShuffled(!isShuffled); setSubscribeBoxOpen(false); }}
+          title="Shuffle"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+        </button>
+
+        <button className="w-[38px] h-[38px] bg-[#1e1e1e] text-[#aaa] rounded-full flex items-center justify-center hover:bg-[#2e2e2e] hover:text-white" onClick={handlePreviousClick} title="Previous">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
+        </button>
+
+        <button id="play-pause-btn" className="w-[46px] h-[46px] bg-[#ff8c00] text-black rounded-full flex items-center justify-center shadow-lg" onClick={() => { togglePlay(); setSubscribeBoxOpen(false); }} title="Play/Pause">
+          {!isPlaying ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+          )}
+        </button>
+
+        <button className="w-[38px] h-[38px] bg-[#1e1e1e] text-[#aaa] rounded-full flex items-center justify-center hover:bg-[#2e2e2e] hover:text-white" onClick={nextTrack} title="Next">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+        </button>
+
+        <button
+          className={`w-[38px] h-[38px] rounded-full flex items-center justify-center transition-all ${isRepeated ? 'text-[#ff8c00] bg-[#2a1f12] border border-[#ff8c00]' : 'bg-[#1e1e1e] text-[#aaa] hover:bg-[#2e2e2e] hover:text-white'}`}
+          onClick={() => { setIsRepeated(!isRepeated); setSubscribeBoxOpen(false); }}
+          title="Repeat"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+        </button>
+      </div>
+
+      {/* Free Tier Artist Acquisition Footer */}
+      {currentTier === 'free' && (
+        <div className="text-center pt-1 pb-[2px] flex-shrink-0">
+          <a
+            href="/"
+            className="inline-flex items-center justify-center gap-1.5 text-[10px] text-[#777] hover:text-[#ff8c00] transition-colors tracking-wide"
+          >
+            <span className="inline-flex items-end gap-[2px] h-[11px]" aria-hidden="true">
+              <span className="w-[2px] h-full bg-[#ff8c00]" />
+              <span className="w-[2px] h-[7px] bg-[#ff8c00]" />
+              <span className="w-[2px] h-[5px] bg-[#ff8c00]" />
+              <span className="w-[2px] h-[4px] bg-[#ff8c00]" />
+              <span className="w-[2px] h-[5px] bg-[#ff8c00]" />
+              <span className="w-[2px] h-[9px] bg-[#2ecc71]" />
+              <span className="w-[2px] h-full bg-[#ff8c00]" />
+            </span>
+            <span>Powered by</span>
+            <span className="font-bold text-white">Music Market</span>
+            <span>·</span>
+            <span className="underline">Create Your Store</span>
+          </a>
+        </div>
+      )}
+
+      {/* Stream Links Modal Drawer */}
+      {streamModalOpen && (
+        <div className="fixed inset-0 bg-black/80 flex justify-center items-end z-50" onClick={() => setStreamModalOpen(false)}>
+          <div className="bg-[#1a1a1a] w-full max-w-[480px] rounded-t-[20px] p-5 border-t border-[#333] text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="m-0 text-[15px] text-white font-bold tracking-wider">LISTEN ON</h4>
+              <button className="bg-transparent border-none text-[#aaa] text-xl cursor-pointer" onClick={() => setStreamModalOpen(false)}>&times;</button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {currentTrack?.spotify_url && (
+                <a href={currentTrack.spotify_url} target="_blank" rel="noreferrer" className="bg-[#252525] text-white p-3 rounded-[10px] font-bold text-sm border border-[#333] hover:border-[#ff8c00] block">Spotify</a>
+              )}
+              {currentTrack?.apple_music_url && (
+                <a href={currentTrack.apple_music_url} target="_blank" rel="noreferrer" className="bg-[#252525] text-white p-3 rounded-[10px] font-bold text-sm border border-[#333] hover:border-[#ff8c00] block">Apple Music</a>
+              )}
+              {currentTrack?.tidal_url && (
+                <a href={currentTrack.tidal_url} target="_blank" rel="noreferrer" className="bg-[#252525] text-white p-3 rounded-[10px] font-bold text-sm border border-[#333] hover:border-[#ff8c00] block">Tidal</a>
+              )}
+              {currentTrack?.youtube_url && (
+                <a href={currentTrack.youtube_url} target="_blank" rel="noreferrer" className="bg-[#252525] text-white p-3 rounded-[10px] font-bold text-sm border border-[#333] hover:border-[#ff8c00] block">YouTube</a>
+              )}
+              {currentTrack?.pandora_url && (
+                <a href={currentTrack.pandora_url} target="_blank" rel="noreferrer" className="bg-[#252525] text-white p-3 rounded-[10px] font-bold text-sm border border-[#333] hover:border-[#ff8c00] block">Pandora</a>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Buy Option Light Box Modal */}
+      {buyModalOpen && trackToBuy && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#161616] border border-[#2e2e2e] w-full max-w-[420px] rounded-[22px] p-6 text-left shadow-2xl relative">
+            <button
+              onClick={() => setBuyModalOpen(false)}
+              className="absolute top-4 right-4 text-[#888] hover:text-white text-[18px] font-bold cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <h3 className="text-[20px] font-bold text-white mb-1">Select Purchase Option</h3>
+            <p className="text-[12px] text-[#888] mb-5">
+              Choose whether to buy this individual track or the full project.
+            </p>
+
+            <div className="space-y-3">
+                            <button
+                type="button"
+                onClick={() => {
+                  setBuyModalOpen(false);
+                  executeCheckout({
+                    itemType: 'single',
+                    trackId: String(trackToBuy.id),
+                    artistHandle: artistHandle || trackToBuy.artist_handle,
+                    price: trackToBuy.price,
+                    title: trackToBuy.title,
+                  });
+                }}
+
+                className="w-full bg-[#111] hover:bg-[#1f1f1f] border border-[#262626] hover:border-[#ff8c00] p-4 rounded-[14px] flex items-center justify-between text-left transition-all cursor-pointer group"
+              >
+                <div>
+                  <div className="text-[11px] font-bold text-[#ff8c00] uppercase tracking-wider mb-0.5">Single Track</div>
+                  <div className="text-[14px] font-bold text-white group-hover:text-[#ff8c00] transition-colors">{trackToBuy.title}</div>
+                </div>
+                <div className="text-[15px] font-bold text-white bg-[#222] px-3 py-1.5 rounded-[8px] border border-[#333]">
+                  ${parseFloat(String(trackToBuy.price || 0.99)).toFixed(2)}
+                </div>
+              </button>
+
+              {trackToBuy.album_name && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBuyModalOpen(false);
+                    executeCheckout({
+                      itemType: 'album',
+                      albumName: trackToBuy.album_name,
+                      artistHandle: trackToBuy.artist_handle,
+                      price: 7.99
+                    });
+                  }}
+                  className="w-full bg-[#1e1710] hover:bg-[#2a1f12] border border-[#ff8c00]/40 hover:border-[#ff8c00] p-4 rounded-[14px] flex items-center justify-between text-left transition-all cursor-pointer group shadow-[0_0_16px_rgba(255,140,0,0.1)]"
+                >
+                  <div>
+                    <div className="text-[11px] font-bold text-[#2ecc71] uppercase tracking-wider mb-0.5">Full Album Bundle</div>
+                    <div className="text-[14px] font-bold text-white group-hover:text-[#ff8c00] transition-colors">{trackToBuy.album_name}</div>
+                  </div>
+                  <div className="text-[15px] font-bold text-[#ff8c00] bg-[#2a1f12] px-3 py-1.5 rounded-[8px] border border-[#ff8c00]/40">
+                    $7.99
+                  </div>
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setBuyModalOpen(false)}
+              className="w-full text-center text-[12px] text-[#666] hover:text-[#aaa] font-bold pt-4 cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      <audio
+        ref={audioRef}
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={handleTrackEnded}
+      />
+    </div>
+  );
+}

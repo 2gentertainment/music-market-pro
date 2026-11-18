@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2025-02-24' as any,
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2023-10-16',
 });
 
 const TIER_PRICES: Record<string, number> = {
   artist: 999, // $9.99 in cents
-  label: 2999,  // $29.99 in cents
+  label: 2999, // $29.99 in cents
 };
 
 export async function POST(request: Request) {
@@ -20,9 +20,9 @@ export async function POST(request: Request) {
 
     const priceAmount = TIER_PRICES[tier];
     const tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
+    const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
       mode: 'subscription',
       customer_email: email,
       metadata: {
@@ -45,12 +45,13 @@ export async function POST(request: Request) {
           quantity: 1,
         },
       ],
-      success_url: `${request.headers.get('origin')}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${request.headers.get('origin')}/signup`,
+      success_url: `${origin}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/signup`,
     });
 
     return NextResponse.json({ url: session.url });
   } catch (error: any) {
+    console.error('Stripe Subscription Session Error:', error);
     return NextResponse.json({ error: error.message || 'Stripe Session Error' }, { status: 500 });
   }
 }
