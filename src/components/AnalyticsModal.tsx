@@ -315,8 +315,8 @@ export default function AnalyticsModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-neutral-950/85 backdrop-blur-md flex items-center justify-center z-50 p-4">
-      <div className="bg-neutral-900 border border-purple-500/35 rounded-3xl w-full max-w-4xl p-6 space-y-6 text-left shadow-2xl animate-fadeIn max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-neutral-950/85 backdrop-blur-md flex items-center justify-center z-50 p-4 touch-manipulation">
+      <div className="bg-neutral-900 border border-purple-500/35 rounded-3xl w-full max-w-4xl p-6 space-y-6 text-left shadow-2xl animate-fadeIn max-h-[90vh] overflow-y-auto touch-manipulation">
         
         {/* Modal Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-neutral-800 pb-4">
@@ -403,7 +403,7 @@ export default function AnalyticsModal({
               <select
                 value={selectedRosterFilter}
                 onChange={(e) => setSelectedRosterFilter(e.target.value)}
-                className="bg-neutral-950 border border-neutral-800 hover:border-purple-500/50 text-neutral-200 text-xs font-bold rounded-xl px-3 py-2.5 outline-none cursor-pointer transition-all shadow-sm"
+                className="bg-neutral-950 border border-neutral-800 hover:border-purple-500/50 text-neutral-200 text-base sm:text-xs font-bold rounded-xl px-3 py-2.5 outline-none cursor-pointer transition-all shadow-sm"
               >
                 {isSuperAdmin && (
                   <option value="all">All Platform Accounts (Global Master View)</option>
@@ -485,7 +485,7 @@ export default function AnalyticsModal({
                       <select
                         value={selectedGenreFilter}
                         onChange={(e) => setSelectedGenreFilter(e.target.value)}
-                        className="bg-neutral-900 border border-neutral-700 hover:border-[#ff8c00] text-neutral-200 text-xs font-bold rounded-xl px-3 py-2 outline-none cursor-pointer"
+                        className="bg-neutral-900 border border-neutral-700 hover:border-[#ff8c00] text-neutral-200 text-base sm:text-xs font-bold rounded-xl px-3 py-2 outline-none cursor-pointer"
                       >
                         <option value="all">All Genres (Mega-List)</option>
                         {PLATFORM_GENRES.map((genre) => (
