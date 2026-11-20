@@ -115,7 +115,7 @@ export async function POST(req: Request) {
 
       const finalUserId = profileData?.id || resolvedUserId;
 
-      // 4. Provision Stripe Express Account via Accounts v2 (Stripe handles losses/risk)
+      // 4. Provision Stripe Express Account via Accounts v2 (Application responsibility model)
       const account = await stripe.v2.core.accounts.create({
         contact_email: email,
         display_name: handleName || fullName || emailHandle,
@@ -126,8 +126,8 @@ export async function POST(req: Request) {
         dashboard: 'express',
         defaults: {
           responsibilities: {
-            fees_collector: 'stripe',
-            losses_collector: 'stripe',
+            fees_collector: 'application',
+            losses_collector: 'application',
           },
         },
         configuration: {
