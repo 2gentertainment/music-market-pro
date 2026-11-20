@@ -4,8 +4,8 @@ import React from 'react';
 
 export default function StoreArtistCTA() {
   return (
-    <div className="w-full max-w-[1200px] mx-auto px-6 my-16">
-      <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-[#161616] via-[#1a1a1a] to-[#121212] border border-[#2a2a2a] p-8 md:p-12 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
+    <div className="w-full max-w-[1200px] mx-auto px-6 my-16 touch-manipulation">
+      <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-r from-[#161616] via-[#1a1a1a] to-[#121212] border border-[#2a2a2a] p-8 md:p-12 shadow-[0_16px_40px_rgba(0,0,0,0.6)] touch-manipulation">
         
         {/* Subtle background glow accent */}
         <div className="absolute -right-20 -top-20 w-60 h-60 bg-[#ff8c00]/10 rounded-full blur-3xl pointer-events-none"></div>
