@@ -473,7 +473,7 @@ localStorage.removeItem(artistStorageKey);
 // Ignore storage quota/private-mode errors
 }
 }}
-className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff8c00]"
+className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00]"
 >
                    <option value="">-- Select Roster Artist --</option>
                 {normalizedRosterOptions.map((opt) => (
@@ -499,26 +499,28 @@ className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.
             ) : (
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-neutral-300">Track Title *</label>
-                <input
+                                <input
                   type="text"
                   required={uploadMode === 'single' || userTier === 'free'}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Midnight Vibes"
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff8c00]"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00]"
                 />
+
               </div>
             )}
             
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-neutral-300">Genre *</label>
 
-              <select
+                            <select
                 required
                 value={genre}
                 onChange={(e) => setGenre(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff8c00] cursor-pointer"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00] cursor-pointer"
               >
+
                 {PRESET_GENRES.map((g) => (
                   <option key={g} value={g}>{g}</option>
                 ))}
@@ -535,8 +537,9 @@ className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.
                 required
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff8c00]"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00]"
               />
+
             </div>
             
             {(userTier === 'artist' || userTier === 'label') ? (
@@ -545,8 +548,9 @@ className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.
                 <select
                   value={albumMode}
                   onChange={(e) => setAlbumMode(e.target.value as any)}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff8c00] cursor-pointer"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00] cursor-pointer"
                 >
+
                   <option value="none">-- Standalone Single (No Album) --</option>
                   {existingAlbums.length > 0 && <option value="existing">Add to Existing Album</option>}
                   <option value="new">+ Create New Album</option>
@@ -569,12 +573,13 @@ className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.
           {albumMode === 'existing' && (
             <div className="space-y-1.5 p-3 bg-neutral-950 border border-neutral-800 rounded-xl animate-fadeIn">
               <label className="text-xs font-bold text-[#ff8c00]">Select Existing Album</label>
-              <select
+                            <select
                 required
                 value={selectedExistingAlbum}
                 onChange={(e) => setSelectedExistingAlbum(e.target.value)}
-                className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-[#ff8c00]"
+                className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00]"
               >
+
                 <option value="">-- Choose Album --</option>
                 {existingAlbums.map((alb) => (
                   <option key={alb} value={alb}>{alb}</option>
@@ -593,7 +598,7 @@ className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.
                   value={customAlbumName}
                   onChange={(e) => setCustomAlbumName(e.target.value)}
                   placeholder="e.g. Deluxe EP"
-                  className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-[#ff8c00]"
+                  className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00]"
                 />
               </div>
               <div className="space-y-1">
@@ -605,8 +610,9 @@ className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.
                   value={albumPrice}
                   onChange={(e) => setAlbumPrice(e.target.value)}
                   placeholder="7.99"
-                  className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-[#ff8c00]"
+                  className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00]"
                 />
+
               </div>
               <div className="sm:col-span-2 pt-1">
                 <p className="text-[10px] text-emerald-400 font-medium">
@@ -674,8 +680,9 @@ className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.
                     value={item.title}
                     onChange={(e) => handleBatchTitleChange(item.id, e.target.value)}
                     placeholder="Track title"
-                    className="flex-1 bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-lg px-2.5 py-1.5 text-xs text-white outline-none"
+                    className="flex-1 bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-lg px-2.5 py-1.5 text-base sm:text-xs text-white outline-none"
                   />
+
                   <button
                     type="button"
                     onClick={() => removeBatchItem(item.id)}
@@ -707,36 +714,37 @@ className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.
                   value={spotifyUrl}
                   onChange={(e) => setSpotifyUrl(e.target.value)}
                   placeholder="Spotify URL"
-                  className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff8c00]"
+                  className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-base sm:text-xs text-white focus:outline-none focus:border-[#ff8c00]"
                 />
                 <input
                   type="url"
                   value={appleMusicUrl}
                   onChange={(e) => setAppleMusicUrl(e.target.value)}
                   placeholder="Apple Music URL"
-                  className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff8c00]"
+                  className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-base sm:text-xs text-white focus:outline-none focus:border-[#ff8c00]"
                 />
                 <input
                   type="url"
                   value={tidalUrl}
                   onChange={(e) => setTidalUrl(e.target.value)}
                   placeholder="Tidal URL"
-                  className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff8c00]"
+                  className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-base sm:text-xs text-white focus:outline-none focus:border-[#ff8c00]"
                 />
                 <input
                   type="url"
                   value={youtubeUrl}
                   onChange={(e) => setYoutubeUrl(e.target.value)}
                   placeholder="YouTube URL"
-                  className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff8c00]"
+                  className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-base sm:text-xs text-white focus:outline-none focus:border-[#ff8c00]"
                 />
                 <input
                   type="url"
                   value={pandoraUrl}
                   onChange={(e) => setPandoraUrl(e.target.value)}
                   placeholder="Pandora URL"
-                  className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff8c00]"
+                  className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-base sm:text-xs text-white focus:outline-none focus:border-[#ff8c00]"
                 />
+
               </div>
             </div>
           )}
