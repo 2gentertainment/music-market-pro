@@ -67,8 +67,8 @@ export default function AlbumSettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md p-6 space-y-5 text-left shadow-2xl">
+    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 touch-manipulation">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md p-6 space-y-5 text-left shadow-2xl touch-manipulation">
         <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
           <div>
             <h3 className="font-extrabold text-lg text-white">Project Cover Art</h3>
