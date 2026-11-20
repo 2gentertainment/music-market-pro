@@ -5,7 +5,6 @@ import { syncCreatorToAweber } from '@/lib/aweber';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
-
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -37,9 +36,8 @@ export async function POST(req: Request) {
     const normalizedTier = (tier || 'free').toLowerCase();
     const commissionRate = getCommissionRate(normalizedTier);
 
-        // 2. Free tier onboarding path
+    // 2. Free tier onboarding path
     if (normalizedTier === 'free') {
-
       if (!email) {
         return NextResponse.json({ error: 'Email is required for onboarding' }, { status: 400 });
       }
@@ -77,7 +75,7 @@ export async function POST(req: Request) {
         : `${emailHandle}-${Math.floor(1000 + Math.random() * 9000)}`;
       const artistProfileUrl = `${appUrl}/artist/${uniqueHandle}`;
 
-            // 3. Perform synchronized schema upsert (tier-based commission rate derived dynamically)
+      // 3. Perform synchronized schema upsert (tier-based commission rate derived dynamically)
       const profilePayload: Record<string, any> = {
         email,
         handle: uniqueHandle,
@@ -89,7 +87,6 @@ export async function POST(req: Request) {
         profile_url: artistProfileUrl,
         updated_at: new Date().toISOString(),
       };
-
 
       if (resolvedUserId) {
         profilePayload.id = resolvedUserId;
@@ -118,20 +115,34 @@ export async function POST(req: Request) {
 
       const finalUserId = profileData?.id || resolvedUserId;
 
-      // 4. Provision Stripe Express Account with valid https:// domain for business_profile
-      const account = await stripe.accounts.create({
-        type: 'express',
-        email,
-        country: 'US',
-        business_type: 'individual',
-                business_profile: {
-          url: 'https://musicmarket.app',
-          product_description: 'Independent music catalog sales and digital downloads.',
+      // 4. Provision Stripe Express Account via Accounts v2 (Stripe handles losses/risk)
+      const account = await stripe.v2.core.accounts.create({
+        contact_email: email,
+        display_name: handleName || fullName || emailHandle,
+        identity: {
+          country: 'us',
+          entity_type: 'individual',
         },
-
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
+        dashboard: 'express',
+        defaults: {
+          responsibilities: {
+            fees_collector: 'stripe',
+            losses_collector: 'stripe',
+          },
+        },
+        configuration: {
+          merchant: {
+            capabilities: {
+              card_payments: { requested: true },
+            },
+          },
+          recipient: {
+            capabilities: {
+              stripe_balance: {
+                stripe_transfers: { requested: true },
+              },
+            },
+          },
         },
         metadata: {
           supabaseUserId: finalUserId || 'pending_auth',
@@ -141,7 +152,7 @@ export async function POST(req: Request) {
         },
       });
 
-          // 5. Update profile immediately with generated stripe_account_id
+      // 5. Update profile immediately with generated stripe_account_id
       if (finalUserId) {
         await supabaseAdmin
           .from('profiles')
@@ -154,13 +165,16 @@ export async function POST(req: Request) {
           .eq('email', email);
       }
 
-
-      // 6. Generate Stripe Express Onboarding Link
-      const accountLink = await stripe.accountLinks.create({
+      // 6. Generate Stripe Express Onboarding Link via Accounts v2
+      const accountLink = await stripe.v2.core.accountLinks.create({
         account: account.id,
-        refresh_url: `${appUrl}/dashboard?connect=refresh`,
-        return_url: `${appUrl}/dashboard?connect=success&account_id=${account.id}`,
-        type: 'account_onboarding',
+        use_case: {
+          type: 'account_onboarding',
+          account_onboarding: {
+            refresh_url: `${appUrl}/dashboard?connect=refresh`,
+            return_url: `${appUrl}/dashboard?connect=success&account_id=${account.id}`,
+          },
+        },
       });
 
       return NextResponse.json({
@@ -181,9 +195,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing price ID for selected tier' }, { status: 400 });
     }
 
-                const session = await stripe.checkout.sessions.create({
+    const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
-
       customer_email: email,
       allow_promotion_codes: true,
       line_items: [
@@ -207,7 +220,6 @@ export async function POST(req: Request) {
         phoneNumber: phoneNumber || '',
         userId: userId || '',
       },
-
       success_url: `${appUrl}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/`,
     });
