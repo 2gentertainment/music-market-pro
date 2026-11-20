@@ -592,7 +592,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
 
   return (
-    <div className="player-card bg-[#121212] text-white w-full max-w-[480px] h-[100dvh] p-4 flex flex-col justify-between overflow-hidden box-border mx-auto relative">
+    <div className="player-card bg-[#121212] text-white w-full max-w-[480px] h-[100dvh] p-4 flex flex-col justify-between overflow-hidden box-border mx-auto relative touch-manipulation">
       <div className="player-header text-center text-[11px] tracking-[2px] text-[#666] uppercase pt-[2px]">
         {artistHandle ? `${artistHandle.toUpperCase()} STORE` : 'Music Market'}
       </div>
@@ -739,7 +739,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
             <input
               type="email"
               required
-              className="flex-1 p-[8px] rounded-[10px] border border-[#444] bg-[#1a1a1a] text-white text-[13px] outline-none focus:border-[#ff8c00]"
+              className="flex-1 p-[8px] rounded-[10px] border border-[#444] bg-[#1a1a1a] text-white text-base sm:text-[13px] outline-none focus:border-[#ff8c00]"
               placeholder="Enter your email..."
               value={subscriberEmail}
               onChange={(e) => setSubscriberEmail(e.target.value)}
@@ -937,8 +937,8 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
       {/* Stream Links Modal Drawer */}
       {streamModalOpen && (
-        <div className="fixed inset-0 bg-black/80 flex justify-center items-end z-50" onClick={() => setStreamModalOpen(false)}>
-          <div className="bg-[#1a1a1a] w-full max-w-[480px] rounded-t-[20px] p-5 border-t border-[#333] text-center" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/80 flex justify-center items-end z-50 touch-manipulation" onClick={() => setStreamModalOpen(false)}>
+          <div className="bg-[#1a1a1a] w-full max-w-[480px] rounded-t-[20px] p-5 border-t border-[#333] text-center touch-manipulation" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h4 className="m-0 text-[15px] text-white font-bold tracking-wider">LISTEN ON</h4>
               <button className="bg-transparent border-none text-[#aaa] text-xl cursor-pointer" onClick={() => setStreamModalOpen(false)}>&times;</button>
@@ -976,8 +976,8 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
       {/* Buy Option Light Box Modal */}
       {buyModalOpen && trackToBuy && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#161616] border border-[#2e2e2e] w-full max-w-[420px] rounded-[22px] p-6 text-left shadow-2xl relative">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 touch-manipulation">
+          <div className="bg-[#161616] border border-[#2e2e2e] w-full max-w-[420px] rounded-[22px] p-6 text-left shadow-2xl relative touch-manipulation">
             <button
               onClick={() => setBuyModalOpen(false)}
               className="absolute top-4 right-4 text-[#888] hover:text-white text-[18px] font-bold cursor-pointer"
