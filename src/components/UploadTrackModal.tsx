@@ -592,7 +592,7 @@ className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.
                 <label className="text-xs font-semibold text-neutral-300">Audio Master Files (.mp3/.wav) *</label>
                 <input
                   type="file"
-                  accept="audio/*"
+                  accept=".mp3,audio/mpeg,audio/mp3"
                   multiple
                   required={batchItems.length === 0}
                   onChange={(e) => handleBatchFilesSelected(e.target.files)}
