@@ -160,7 +160,7 @@ export default function DirectBalanceButton({
       type="button"
       onClick={handleCardClick}
       disabled={!isInteractive}
-      className={`p-5 bg-neutral-900 border rounded-xl flex items-center justify-between transition-all text-left w-full ${
+      className={`p-5 bg-neutral-900 border rounded-xl flex items-center justify-between transition-all text-left w-full touch-manipulation ${
         needsPayoutSetup
           ? 'border-emerald-500/40 hover:border-emerald-400 cursor-pointer active:scale-[0.99]'
           : isPaid
