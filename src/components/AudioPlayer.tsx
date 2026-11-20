@@ -613,7 +613,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
           <div className="search-input-container absolute left-0 top-0 w-full z-20">
             <input
               type="text"
-              className="w-full h-[36px] px-[14px] bg-black border border-[#ff8c00] rounded-[8px] text-white text-[13px] outline-none shadow-[0_0_0_2px_rgba(255,140,0,0.2)]"
+              className="w-full h-[36px] px-[14px] bg-black border border-[#ff8c00] rounded-[8px] text-white text-base sm:text-[13px] outline-none shadow-[0_0_0_2px_rgba(255,140,0,0.2)] touch-manipulation"
               placeholder="Search catalog by title, artist, or genre..."
               value={searchQuery}
               onChange={(e) => {
