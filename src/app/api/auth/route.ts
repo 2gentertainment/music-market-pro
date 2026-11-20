@@ -3,14 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 import { syncCreatorToAweber } from '@/lib/aweber';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16' as any,
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
 
 if (!SUPABASE_SERVICE_ROLE_KEY) {
   console.warn('Warning: SUPABASE_SERVICE_ROLE_KEY is missing in app/api/auth/route.ts');
@@ -28,10 +25,9 @@ const supabaseAdmin = createClient(
 );
 
 export async function POST(request: Request) {
-    try {
+  try {
     const body = await request.json();
     const { action, email, password, name, phone, handle, stageName, agreedToTerms } = body;
-
 
     if (action === 'signup') {
       if (!SUPABASE_SERVICE_ROLE_KEY) {
@@ -58,7 +54,7 @@ export async function POST(request: Request) {
 
       let finalUser = authData?.user;
 
-            if (authError || !finalUser) {
+      if (authError || !finalUser) {
         return NextResponse.json(
           {
             success: false,
@@ -68,8 +64,7 @@ export async function POST(request: Request) {
         );
       }
 
-
-            const emailHandle = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+      const emailHandle = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
       const uniqueHandle = handle ? handle.toLowerCase().replace(/[^a-z0-9]/g, '-') : `${emailHandle}-${Math.floor(1000 + Math.random() * 9000)}`;
       const resolvedStageName =
         (typeof stageName === 'string' && stageName.trim()) ||
@@ -97,7 +92,6 @@ export async function POST(request: Request) {
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
 
-
         if (dbError) {
           console.error('Database profile provision error on auth signup:', dbError);
         }
@@ -115,20 +109,34 @@ export async function POST(request: Request) {
         console.error('AWeber sync warning (auth signup):', aweberErr);
       }
 
-      // 3. Initialize Stripe Express account with verified https:// domain to prevent url_invalid errors
-      const account = await stripe.accounts.create({
-        type: 'express',
-        email: email,
-        country: 'US',
-        business_type: 'individual',
-                business_profile: {
-          url: 'https://musicmarket.app',
-          product_description: 'Independent music catalog sales and digital downloads.',
+      // 3. Initialize Stripe Express account via Accounts v2 (Stripe handles losses/risk)
+      const account = await stripe.v2.core.accounts.create({
+        contact_email: email,
+        display_name: resolvedStageName || name || emailHandle,
+        identity: {
+          country: 'us',
+          entity_type: 'individual',
         },
-
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
+        dashboard: 'express',
+        defaults: {
+          responsibilities: {
+            fees_collector: 'stripe',
+            losses_collector: 'stripe',
+          },
+        },
+        configuration: {
+          merchant: {
+            capabilities: {
+              card_payments: { requested: true },
+            },
+          },
+          recipient: {
+            capabilities: {
+              stripe_balance: {
+                stripe_transfers: { requested: true },
+              },
+            },
+          },
         },
         metadata: {
           supabaseUserId: finalUser?.id || 'pending_auth',
@@ -143,12 +151,16 @@ export async function POST(request: Request) {
           .eq('id', finalUser.id);
       }
 
-      // 4. Generate Stripe onboarding link
-      const accountLink = await stripe.accountLinks.create({
+      // 4. Generate Stripe onboarding link via Accounts v2
+      const accountLink = await stripe.v2.core.accountLinks.create({
         account: account.id,
-        refresh_url: `${appUrl}/dashboard?connect=refresh`,
-        return_url: `${appUrl}/dashboard?connect=success&account_id=${account.id}`,
-        type: 'account_onboarding',
+        use_case: {
+          type: 'account_onboarding',
+          account_onboarding: {
+            refresh_url: `${appUrl}/dashboard?connect=refresh`,
+            return_url: `${appUrl}/dashboard?connect=success&account_id=${account.id}`,
+          },
+        },
       });
 
       // 5. Return Stripe URL so sign-up redirects straight to Stripe onboarding (Never dashboard)
