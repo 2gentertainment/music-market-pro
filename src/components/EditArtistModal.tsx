@@ -90,8 +90,8 @@ export default function EditArtistModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md p-6 space-y-5 text-left shadow-2xl">
+    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 touch-manipulation">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md p-6 space-y-5 text-left shadow-2xl touch-manipulation">
         <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
           <div>
             <h3 className="font-extrabold text-xl text-white">Edit Artist Details</h3>
@@ -125,7 +125,7 @@ export default function EditArtistModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Artist One"
-              className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-4 py-2.5 text-sm text-white outline-none"
+              className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-4 py-2.5 text-base sm:text-sm text-white outline-none"
               autoFocus
             />
           </div>
@@ -137,7 +137,7 @@ export default function EditArtistModal({
               value={artistHandle}
               onChange={(e) => setArtistHandle(e.target.value)}
               placeholder="e.g. artist-one"
-              className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-4 py-2.5 text-sm text-white outline-none"
+              className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-4 py-2.5 text-base sm:text-sm text-white outline-none"
             />
             {cleanSlug(artistHandle) && (
               <p className="text-[11px] text-neutral-400">
