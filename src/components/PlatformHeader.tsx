@@ -45,14 +45,6 @@ export default function PlatformHeader({
           </Link>
         )}
         
-        {userTier === 'free' && (
-          <Link 
-            href="/upgrade" 
-            className="bg-[#ff8c00] hover:bg-[#e07b00] text-black font-bold px-4 py-2 rounded-[10px] text-[13px] transition-all cursor-pointer"
-          >
-            Upgrade
-          </Link>
-        )}
 
         {/* Support Envelope Button */}
         {onOpenSupport && (
