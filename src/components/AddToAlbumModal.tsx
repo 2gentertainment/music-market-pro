@@ -139,8 +139,8 @@ export default function AddToAlbumModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-lg p-6 space-y-6 text-left shadow-2xl">
+    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 touch-manipulation">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-lg p-6 space-y-6 text-left shadow-2xl touch-manipulation">
         <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
           <div>
             <h3 className="font-extrabold text-xl text-white">Manage Project Album Songs</h3>
@@ -172,14 +172,14 @@ export default function AddToAlbumModal({
               placeholder="Enter new album or EP title..."
               value={newAlbumName}
               onChange={(e) => setNewAlbumName(e.target.value)}
-              className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3 py-2.5 text-xs text-white outline-none"
+              className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3 py-2.5 text-base sm:text-xs text-white outline-none"
               autoFocus
             />
           ) : (
             <select
               value={selectedAlbum}
               onChange={(e) => setSelectedAlbum(e.target.value)}
-              className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3 py-2.5 text-xs text-white outline-none cursor-pointer"
+              className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3 py-2.5 text-base sm:text-xs text-white outline-none cursor-pointer"
             >
               {existingAlbums.map((alb) => (
                 <option key={alb} value={alb}>{alb}</option>
@@ -197,7 +197,7 @@ export default function AddToAlbumModal({
             <select
               value={selectedAlbumArtist}
               onChange={(e) => setSelectedAlbumArtist(e.target.value)}
-              className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3 py-2.5 text-xs text-white outline-none cursor-pointer"
+              className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3 py-2.5 text-base sm:text-xs text-white outline-none cursor-pointer"
             >
                             {rosterArtists.map((artist) => {
                 const handleToUse = artist.artist_handle || artist.handle;
