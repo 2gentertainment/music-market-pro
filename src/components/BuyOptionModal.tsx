@@ -32,8 +32,8 @@ export default function BuyOptionModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#161616] border border-[#2e2e2e] w-full max-w-[420px] rounded-[22px] p-6 text-left shadow-2xl relative">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 touch-manipulation">
+      <div className="bg-[#161616] border border-[#2e2e2e] w-full max-w-[420px] rounded-[22px] p-6 text-left shadow-2xl relative touch-manipulation">
         <button 
           onClick={onClose}
           className="absolute top-4 right-4 text-[#888] hover:text-white text-[18px] font-bold cursor-pointer"
