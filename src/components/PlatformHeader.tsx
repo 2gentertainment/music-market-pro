@@ -17,7 +17,7 @@ export default function PlatformHeader({
   rightContent
 }: PlatformHeaderProps) { 
   return (
-    <header className="w-full max-w-[1200px] mx-auto p-6 flex justify-between items-center">
+    <header className="w-full max-w-[1200px] mx-auto p-6 flex justify-between items-center touch-manipulation">
       {/* Logo links back to Home */}
       <Link href="/" className="flex items-center gap-3 group cursor-pointer">
         <div className="flex items-end gap-1 h-6">
