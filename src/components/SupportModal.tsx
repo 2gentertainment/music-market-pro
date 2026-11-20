@@ -77,8 +77,8 @@ export default function SupportModal({ isOpen, onClose, userEmail }: SupportModa
 
 
   return (
-    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md p-6 space-y-6 text-left shadow-2xl relative">
+    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 touch-manipulation">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md p-6 space-y-6 text-left shadow-2xl relative touch-manipulation">
         <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
           <div>
             <h3 className="font-extrabold text-lg text-white">Contact Music Market Support</h3>
@@ -101,7 +101,7 @@ export default function SupportModal({ isOpen, onClose, userEmail }: SupportModa
               <select
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3 py-2.5 text-xs text-white outline-none cursor-pointer"
+                className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3 py-2.5 text-base sm:text-xs text-white outline-none cursor-pointer"
               >
                 <option value="Billing">Billing & Payouts</option>
                 <option value="Technical Issue">Technical Issue / Bug</option>
@@ -118,7 +118,7 @@ export default function SupportModal({ isOpen, onClose, userEmail }: SupportModa
                 placeholder="Describe your issue or question in detail..."
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl p-3 text-xs text-white outline-none resize-none"
+                className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl p-3 text-base sm:text-xs text-white outline-none resize-none"
               ></textarea>
             </div>
 
