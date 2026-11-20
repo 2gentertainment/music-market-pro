@@ -61,8 +61,8 @@ export default function AddArtistModal({ isOpen, onClose, parentLabelId, onArtis
   };
 
   return (
-    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md p-6 space-y-6 text-left shadow-2xl">
+    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 touch-manipulation">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md p-6 space-y-6 text-left shadow-2xl touch-manipulation">
         <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
           <div>
             <h3 className="font-extrabold text-xl text-white">Add Artist to Roster</h3>
@@ -89,7 +89,7 @@ export default function AddArtistModal({ isOpen, onClose, parentLabelId, onArtis
                 setHandle(e.target.value.toLowerCase().replace(/\s+/g, '-'));
               }}
               placeholder="e.g. Lou Kain"
-              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff8c00]"
+              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00]"
             />
           </div>
 
@@ -101,7 +101,7 @@ export default function AddArtistModal({ isOpen, onClose, parentLabelId, onArtis
               value={handle}
               onChange={(e) => setHandle(e.target.value)}
               placeholder="e.g. lou-kain"
-              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff8c00]"
+              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00]"
             />
           </div>
 
