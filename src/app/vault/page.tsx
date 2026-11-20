@@ -39,7 +39,7 @@ export default function VaultPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#121212] text-white flex flex-col justify-between selection:bg-[#ff8c00] selection:text-black">
+    <div className="min-h-screen bg-[#121212] text-white flex flex-col justify-between touch-manipulation selection:bg-[#ff8c00] selection:text-black">
       {/* Header */}
       <header className="w-full max-w-[1200px] mx-auto p-6 flex justify-between items-center">
         <div className="flex items-center gap-3">
@@ -102,7 +102,7 @@ export default function VaultPage() {
                 placeholder="fan@domain.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-[#111] border border-[#2e2e2e] focus:border-[#ff8c00] px-4 py-3 rounded-[10px] text-[14px] text-white outline-none"
+                className="w-full bg-[#111] border border-[#2e2e2e] focus:border-[#ff8c00] px-4 py-3 rounded-[10px] text-base sm:text-[14px] text-white outline-none"
                 required
               />
             </div>
