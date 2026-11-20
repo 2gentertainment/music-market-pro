@@ -396,7 +396,7 @@ export default function LabelStorefront({ profile, tracks, labelHandle }: LabelS
 
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center p-4 md:p-8">
+    <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center p-4 md:p-8 touch-manipulation">
       <div className="w-full max-w-4xl space-y-8">
         
         {/* Header / Branding */}
