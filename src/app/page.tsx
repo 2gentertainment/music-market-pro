@@ -214,7 +214,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-[#121212] text-white flex flex-col justify-between selection:bg-[#ff8c00] selection:text-black">
+    <div className="min-h-[100dvh] bg-[#121212] text-white flex flex-col justify-between touch-manipulation selection:bg-[#ff8c00] selection:text-black">
       <header className="w-full max-w-[1200px] mx-auto p-6 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div className="flex items-end gap-1 h-6">
@@ -302,8 +302,8 @@ export default function HomePage() {
       )}
 
       {showSignupModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#161616] border border-[#2e2e2e] w-full max-w-[540px] rounded-[22px] p-6 sm:p-8 relative shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 touch-manipulation">
+          <div className="bg-[#161616] border border-[#2e2e2e] w-full max-w-[540px] rounded-[22px] p-6 sm:p-8 relative shadow-2xl max-h-[90vh] overflow-y-auto touch-manipulation">
             <button onClick={() => setShowSignupModal(false)} className="absolute top-4 right-4 text-[#888] hover:text-white text-[18px] font-bold cursor-pointer">✕</button>
 
             {!submitted ? (
@@ -354,7 +354,7 @@ export default function HomePage() {
                       placeholder="e.g. Johnathan Michael Doe" 
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      className="w-full bg-[#111] border border-[#2e2e2e] focus:border-[#ff8c00] px-4 py-3 rounded-[10px] text-[14px] text-white outline-none mb-3"
+                      className="w-full bg-[#111] border border-[#2e2e2e] focus:border-[#ff8c00] px-4 py-3 rounded-[10px] text-base sm:text-[14px] text-white outline-none mb-3"
                       required
                     />
                   </div>
@@ -370,7 +370,7 @@ export default function HomePage() {
                       placeholder={selectedTier === 'label' ? 'Enter Record Label Name' : 'Enter Artist Stage Name'} 
                       value={handleName}
                       onChange={(e) => setHandleName(e.target.value)}
-                      className="w-full bg-[#111] border border-[#2e2e2e] focus:border-[#ff8c00] px-4 py-3 rounded-[10px] text-[14px] text-white outline-none mb-3"
+                      className="w-full bg-[#111] border border-[#2e2e2e] focus:border-[#ff8c00] px-4 py-3 rounded-[10px] text-base sm:text-[14px] text-white outline-none mb-3"
                       required
                     />
                     {handleName.trim() && (
@@ -390,7 +390,7 @@ export default function HomePage() {
                         placeholder="artist@domain.com" 
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full bg-[#111] border border-[#2e2e2e] focus:border-[#ff8c00] px-4 py-3 rounded-[10px] text-[14px] text-white outline-none"
+                        className="w-full bg-[#111] border border-[#2e2e2e] focus:border-[#ff8c00] px-4 py-3 rounded-[10px] text-base sm:text-[14px] text-white outline-none"
                         required
                       />
                     </div>
@@ -403,7 +403,7 @@ export default function HomePage() {
                         placeholder="(555) 000-0000" 
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value)}
-                        className="w-full bg-[#111] border border-[#2e2e2e] focus:border-[#ff8c00] px-4 py-3 rounded-[10px] text-[14px] text-white outline-none"
+                        className="w-full bg-[#111] border border-[#2e2e2e] focus:border-[#ff8c00] px-4 py-3 rounded-[10px] text-base sm:text-[14px] text-white outline-none"
                         required
                       />
                     </div>
@@ -418,7 +418,7 @@ export default function HomePage() {
                       placeholder="••••••••" 
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full bg-[#111] border border-[#2e2e2e] focus:border-[#ff8c00] px-4 py-3 rounded-[10px] text-[14px] text-white outline-none"
+                      className="w-full bg-[#111] border border-[#2e2e2e] focus:border-[#ff8c00] px-4 py-3 rounded-[10px] text-base sm:text-[14px] text-white outline-none"
                       required
                     />
                   </div>
