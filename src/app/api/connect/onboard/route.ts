@@ -1,4 +1,4 @@
-// app/api/connect/onboard/route.ts
+// src/app/api/connect/onboard/route.ts
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
@@ -45,7 +45,6 @@ export async function POST(req: Request) {
       use_case: {
         type: 'account_onboarding',
         account_onboarding: {
-          configurations: ['merchant', 'recipient'],
           refresh_url: `${process.env.NEXT_PUBLIC_BASE_URL}/onboard/refresh`,
           return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/dashboard?connect=success`,
         },
