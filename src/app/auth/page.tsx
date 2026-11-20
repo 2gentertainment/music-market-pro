@@ -84,13 +84,13 @@ export default function AuthPage() {
   };
 
   return (
-    <div style={styles.pageWrapper}>
+    <div style={styles.pageWrapper} className="touch-manipulation">
       {/* Platform Header without upgrade button */}
       <PlatformHeader userTier="" />
 
       {/* Main Auth Form Container */}
-      <div style={styles.wrapper}>
-        <div style={styles.card}>
+      <div style={styles.wrapper} className="touch-manipulation">
+        <div style={styles.card} className="touch-manipulation">
           <div style={styles.header}>
             <h2 style={styles.title}>{isLoginState ? 'Welcome Back' : 'Create Free Account'}</h2>
             <p style={styles.subtitle}>{isLoginState ? 'Log in to manage your catalog.' : 'Join to manage and distribute your music.'}</p>
@@ -187,7 +187,7 @@ export default function AuthPage() {
               </div>
             )}
 
-            <button type="submit" style={styles.submitBtn} disabled={loading}>
+            <button type="submit" style={styles.submitBtn} className="touch-manipulation" disabled={loading}>
               {loading ? 'Processing...' : (isLoginState ? 'Sign In' : 'Create Account')}
             </button>
           </form>
@@ -198,6 +198,7 @@ export default function AuthPage() {
               type="button" 
               onClick={() => { setIsLoginState(!isLoginState); setErrorMsg(''); setAgreedToTerms(false); }}
               style={styles.toggleBtn}
+              className="touch-manipulation"
             >
               {isLoginState ? 'Sign Up' : 'Sign In'}
             </button>
@@ -217,7 +218,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   subtitle: { fontSize: '13px', color: '#888' },
   inputGroup: { marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', textAlign: 'left' },
   label: { display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#aaa', marginBottom: '0.5rem' },
-  input: { width: '100%', background: '#111', border: '1px solid #2e2e2e', borderRadius: '10px', padding: '0.85rem 1rem', color: '#fff', fontSize: '14px', outline: 'none', transition: 'border-color 0.2s' },
+  input: { width: '100%', background: '#111', border: '1px solid #2e2e2e', borderRadius: '10px', padding: '0.85rem 1rem', color: '#fff', fontSize: '16px', outline: 'none', transition: 'border-color 0.2s', touchAction: 'manipulation' },
   legalGroup: { display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '1.25rem', textAlign: 'left' },
   checkbox: { marginTop: '2px', width: '16px', height: '16px', accentColor: '#ff8c00', cursor: 'pointer', flexShrink: 0 },
   legalText: { fontSize: '11px', color: '#888', lineHeight: '1.4', cursor: 'pointer' },
