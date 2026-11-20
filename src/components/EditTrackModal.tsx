@@ -122,8 +122,8 @@ export default function EditTrackModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-lg p-6 space-y-6 text-left shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 touch-manipulation">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-lg p-6 space-y-6 text-left shadow-2xl max-h-[90vh] overflow-y-auto touch-manipulation">
         <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
           <div>
             <h3 className="font-extrabold text-xl text-white">Edit Track, Artwork & DSP Links</h3>
@@ -167,7 +167,7 @@ export default function EditTrackModal({
                 required
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff8c00]"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00]"
               />
             </div>
             
@@ -177,7 +177,7 @@ export default function EditTrackModal({
                 required
                 value={genre}
                 onChange={(e) => setGenre(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff8c00] cursor-pointer"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00] cursor-pointer"
               >
                 {PRESET_GENRES.map((g) => (
                   <option key={g} value={g}>{g}</option>
@@ -195,7 +195,7 @@ export default function EditTrackModal({
                 required
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff8c00]"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00]"
               />
             </div>
             
@@ -207,7 +207,7 @@ export default function EditTrackModal({
                   value={albumName}
                   onChange={(e) => setAlbumName(e.target.value)}
                   placeholder="e.g. Deluxe EP"
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff8c00]"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-base sm:text-sm text-white focus:outline-none focus:border-[#ff8c00]"
                 />
               </div>
             ) : (
@@ -222,11 +222,11 @@ export default function EditTrackModal({
             <div className="border-t border-neutral-800 pt-4 space-y-3">
               <span className="text-xs font-bold text-[#ff8c00] uppercase tracking-wider block">Streaming Platform Links</span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input type="url" value={spotifyUrl} onChange={(e) => setSpotifyUrl(e.target.value)} placeholder="Spotify URL" className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff8c00]" />
-                <input type="url" value={appleMusicUrl} onChange={(e) => setAppleMusicUrl(e.target.value)} placeholder="Apple Music URL" className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff8c00]" />
-                <input type="url" value={tidalUrl} onChange={(e) => setTidalUrl(e.target.value)} placeholder="Tidal URL" className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff8c00]" />
-                <input type="url" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="YouTube URL" className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff8c00]" />
-                <input type="url" value={pandoraUrl} onChange={(e) => setPandoraUrl(e.target.value)} placeholder="Pandora URL" className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#ff8c00]" />
+                <input type="url" value={spotifyUrl} onChange={(e) => setSpotifyUrl(e.target.value)} placeholder="Spotify URL" className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-base sm:text-xs text-white focus:outline-none focus:border-[#ff8c00]" />
+                <input type="url" value={appleMusicUrl} onChange={(e) => setAppleMusicUrl(e.target.value)} placeholder="Apple Music URL" className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-base sm:text-xs text-white focus:outline-none focus:border-[#ff8c00]" />
+                <input type="url" value={tidalUrl} onChange={(e) => setTidalUrl(e.target.value)} placeholder="Tidal URL" className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-base sm:text-xs text-white focus:outline-none focus:border-[#ff8c00]" />
+                <input type="url" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="YouTube URL" className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-base sm:text-xs text-white focus:outline-none focus:border-[#ff8c00]" />
+                <input type="url" value={pandoraUrl} onChange={(e) => setPandoraUrl(e.target.value)} placeholder="Pandora URL" className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-base sm:text-xs text-white focus:outline-none focus:border-[#ff8c00]" />
               </div>
             </div>
           ) : (
