@@ -287,11 +287,14 @@ export default function UploadTrackModal({
 
       const publishedTitles: string[] = [];
 
-      for (let i = 0; i < itemsToPublish.length; i++) {
+            for (let i = 0; i < itemsToPublish.length; i++) {
         const entry = itemsToPublish[i];
-        if (itemsToPublish.length > 1) {
-          setUploadProgressText(`Uploading ${i + 1} of ${itemsToPublish.length}: "${entry.trackTitle}"...`);
-        }
+        setUploadProgressText(
+          itemsToPublish.length > 1
+            ? `Uploading ${i + 1} of ${itemsToPublish.length}: "${entry.trackTitle}"...`
+            : `Uploading "${entry.trackTitle}" to audio vault...`
+        );
+
 
         const audioFileName = `${Date.now()}-${i}-${entry.file.name}`;
         const { data: audioUpload, error: audioError } = await _supabase.storage
@@ -379,9 +382,10 @@ export default function UploadTrackModal({
 
 
 
-  return (
-    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-lg p-6 space-y-6 text-left shadow-2xl max-h-[90vh] overflow-y-auto">
+    return (
+    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 touch-manipulation">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-lg p-6 space-y-6 text-left shadow-2xl max-h-[90vh] overflow-y-auto touch-manipulation">
+
         <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
           <div>
             <h3 className="font-extrabold text-xl text-white">Upload New Track</h3>
