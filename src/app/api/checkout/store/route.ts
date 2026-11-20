@@ -3,9 +3,8 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import { syncCreatorToAweber } from '@/lib/aweber';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16' as any,
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -125,10 +124,11 @@ export async function POST(req: Request) {
         email,
         country: 'US',
         business_type: 'individual',
-        business_profile: {
-          url: 'https://2g-ent.com',
+                business_profile: {
+          url: 'https://musicmarket.app',
           product_description: 'Independent music catalog sales and digital downloads.',
         },
+
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },
@@ -181,9 +181,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing price ID for selected tier' }, { status: 400 });
     }
 
-        const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+                const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
+
       customer_email: email,
       allow_promotion_codes: true,
       line_items: [

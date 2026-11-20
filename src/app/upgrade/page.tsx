@@ -12,51 +12,10 @@ function UpgradePageContent() {
   const currentTier = searchParams.get('tier') || 'free'; // 'free', 'artist', or 'label'
   const profileId = searchParams.get('profile_id');
 
-  const [loadingTier, setLoadingTier] = useState<string | null>(null);
-  const [couponCode, setCouponCode] = useState('');
-  const [firstMonthCouponUsed, setFirstMonthCouponUsed] = useState<boolean>(false);
-  const [checkingCouponEligibility, setCheckingCouponEligibility] = useState<boolean>(true);
+    const [loadingTier, setLoadingTier] = useState<string | null>(null);
 
   const isDowngrade = action === 'downgrade';
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadCouponStatus() {
-      try {
-        let query = supabase.from('profiles').select('first_month_coupon_used');
-
-        if (profileId) {
-          query = query.eq('id', profileId);
-        } else if (accountId) {
-          query = query.eq('stripe_account_id', accountId);
-        } else if (handle) {
-          query = query.eq('handle', handle);
-        } else {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user?.id) {
-            query = query.eq('id', session.user.id);
-          }
-        }
-
-        const { data } = await query.maybeSingle();
-        if (active) {
-          setFirstMonthCouponUsed(Boolean(data?.first_month_coupon_used));
-        }
-      } catch (err) {
-        console.error('Failed to check coupon eligibility:', err);
-      } finally {
-        if (active) {
-          setCheckingCouponEligibility(false);
-        }
-      }
-    }
-
-    loadCouponStatus();
-    return () => {
-      active = false;
-    };
-  }, [accountId, handle, profileId]);
 
   const handleAction = async (targetTier: string) => {
   setLoadingTier(targetTier);
@@ -64,20 +23,19 @@ function UpgradePageContent() {
     const { data: { session } } = await supabase.auth.getSession();
     const email = session?.user?.email || null;
 
-    const endpoint = targetTier === 'free' ? '/api/checkout/downgrade' : '/api/checkout/upgrade';
-    const payload: Record<string, any> = {
+           const useDowngradeRoute = targetTier === 'free' || (isDowngrade && targetTier === 'artist');
+    const endpoint = useDowngradeRoute ? '/api/checkout/downgrade' : '/api/checkout/upgrade';
+    const payload = {
       tier: targetTier,
+      targetTier,
       accountId,
       handle,
       profileId,
       email,
     };
 
-    if (targetTier !== 'free' && !firstMonthCouponUsed && couponCode.trim()) {
-      payload.couponCode = couponCode.trim();
-    }
-
     const res = await fetch(endpoint, {
+
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -115,26 +73,6 @@ function UpgradePageContent() {
           </p>
         </div>
 
-        {/* One-Time First-Month Coupon Input (Only shown on upgrades when unused) */}
-        {!isDowngrade && !checkingCouponEligibility && !firstMonthCouponUsed && (
-          <div className="max-w-md mx-auto bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 text-left space-y-2">
-            <div className="flex items-center justify-between">
-              <label htmlFor="first-month-coupon" className="text-xs font-bold text-neutral-200">
-                First-Month Promo Code (One-Time Use)
-              </label>
-              <span className="text-[10px] font-bold text-[#ff8c00] uppercase">New Upgrade Offer</span>
-            </div>
-            <input
-              id="first-month-coupon"
-              type="text"
-              value={couponCode}
-              onChange={(e) => setCouponCode(e.target.value)}
-              placeholder="Enter first-month code (e.g. FIRSTMONTH)"
-              className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3.5 py-2.5 text-xs text-white outline-none uppercase"
-            />
-          </div>
-        )}
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left pt-2">
 
           {/* ================= DOWNGRADE VIEWS ================= */}
@@ -146,11 +84,15 @@ function UpgradePageContent() {
                     <span className="text-[10px] bg-neutral-800 text-neutral-300 px-2.5 py-1 rounded-md font-bold uppercase border border-neutral-700">
                       Solo Creator
                     </span>
-                    <h3 className="text-xl font-bold text-white mt-2">Independent Artist</h3>
+                                    <h3 className="text-xl font-bold text-white mt-2">Independent Artist</h3>
                     <p className="text-xs text-neutral-400 mt-1">Scale down to solo creator status ($9.99/mo).</p>
+                    <p className="text-[11px] text-[#ff8c00] font-medium">
+                      Takes effect at the end of your current paid billing period.
+                    </p>
+
                     <ul className="space-y-2.5 text-xs text-neutral-300">
                       <li className="flex items-center gap-2">✓ Unlimited catalogue track uploads</li>
-                      <li className="flex items-center gap-2">✓ 100% direct revenue retained</li>
+                      <li className="flex items-center gap-2">✓ 10% Marketplace commission</li>
                       <li className="flex items-center gap-2 text-neutral-500">✕ Master label roster management removed</li>
                     </ul>
                   </div>
@@ -173,10 +115,14 @@ function UpgradePageContent() {
                   <span className="text-[10px] bg-red-500/20 text-red-400 px-2.5 py-1 rounded-md font-bold uppercase border border-red-500/30">
                     Basic Tier
                   </span>
-                  <h3 className="text-xl font-bold text-white mt-2">Downgrade to Free</h3>
+                                   <h3 className="text-xl font-bold text-white mt-2">Downgrade to Free</h3>
                   <p className="text-xs text-neutral-400 mt-1">
                     Downgrade to free tier ($0/mo). Your catalog will be capped at 10 tracks and a 15% marketplace commission will apply.
                   </p>
+                  <p className="text-[11px] text-[#ff8c00] font-medium">
+                    Takes effect at the end of your current paid billing period.
+                  </p>
+
                 </div>
                 <button
                   onClick={() => handleAction('free')}
@@ -207,8 +153,10 @@ function UpgradePageContent() {
 
                     <ul className="space-y-2.5 text-xs text-neutral-300">
                       <li className="flex items-center gap-2">✓ <strong>Unlimited</strong> catalogue track uploads</li>
-                      <li className="flex items-center gap-2">✓ <strong>100% direct revenue</strong> via Stripe Connect</li>
-                      <li className="flex items-center gap-2">✓ Custom Music Market Single-Artist Player</li>
+                      <li className="flex items-center gap-2">✓ <strong>10% Marketplace commission</strong> via Stripe</li>
+<li className="flex items-center gap-2">✓ Audio Player Direct stream links</li>
+<li className="flex items-center gap-2">✓ Album uploads/sales</li>
+                      <li className="flex items-center gap-2">✓ Enhanced analytics & fan data</li>
                     </ul>
                   </div>
 
@@ -240,9 +188,12 @@ function UpgradePageContent() {
                     </div>
 
                     <ul className="space-y-2.5 text-xs text-neutral-300">
+                      <li className="flex items-center gap-2">✓ <strong>Unlimited Hub</strong> catalogue track uploads</li>
+                      <li className="flex items-center gap-2">✓ <strong>5% Marketplace commission</strong> via Stripe</li>
                       <li className="flex items-center gap-2">✓ <strong>Master Label Hub</strong> & multi-artist management (4 Artists)</li>
-                      <li className="flex items-center gap-2">✓ Up to 4 Individual Music Market Players</li>
-                      <li className="flex items-center gap-2">✓ <strong>100% direct revenue</strong> split routing</li>
+                      <li className="flex items-center gap-2">✓ Up to 4 Individual Music Market Audio Players</li>
+                      <li className="flex items-center gap-2">✓ Full roster analytics</li>
+
                     </ul>
                   </div>
 

@@ -22,6 +22,9 @@ function DashboardContent() {
   const accountId = searchParams.get('account_id');
   const customHandle = searchParams.get('handle');
   const returnedTier = searchParams.get('tier');
+  const scheduledTier = searchParams.get('scheduled');
+  const cancelAtPeriodEnd = searchParams.get('cancel_at_period_end') === 'true';
+
   const [selectedTrackForEdit, setSelectedTrackForEdit] = useState<any | null>(null);
   const [selectedArtistForEdit, setSelectedArtistForEdit] = useState<any | null>(null);
   const [selectedTrackIds, setSelectedTrackIds] = useState<Array<string | number>>([]);
@@ -64,9 +67,12 @@ function DashboardContent() {
   const [labelInputHandle, setLabelInputHandle] = useState('');
   const [savingLabelSetup, setSavingLabelSetup] = useState(false);
 
-  // Search & Filtering state
+    // Search & Filtering state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isAlbumSearchOpen, setIsAlbumSearchOpen] = useState(false);
+  const [albumSearchQuery, setAlbumSearchQuery] = useState('');
+
 
   // Power Menu state
   const [isPowerMenuOpen, setIsPowerMenuOpen] = useState(false);
@@ -84,6 +90,7 @@ function DashboardContent() {
 
   // Modals state
   const [showAllTracks, setShowAllTracks] = useState(false);
+  const [showAllAlbums, setShowAllAlbums] = useState(false);
   const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -97,8 +104,13 @@ function DashboardContent() {
   // Copy feedback state
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
+    const isDevSuiteEnabled =
+    process.env.NODE_ENV === 'development' &&
+    process.env.NEXT_PUBLIC_ENABLE_DEV_SUITE === 'true';
+
   // Base URL & Dynamic Storefront / Artist Player Link Resolution
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://2g-ent.com';
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://musicmarket.app';
+
   
   const labelCorporateHandle = customHandle || userHandle || (accountId ? `label-${accountId.slice(-6)}` : '2g-imprint');
   const personalArtistHandle = artistHandle || customHandle || userHandle || 'your-actual-handle';
@@ -141,9 +153,14 @@ function DashboardContent() {
 }, []);
 
 
-  useEffect(() => {
+    useEffect(() => {
+    const projectRef = process.env.NEXT_PUBLIC_SUPABASE_URL
+      ?.replace(/^https?:\/\//, '')
+      .split('.')[0];
+    const expectedAuthStorageKey = projectRef ? `sb-${projectRef}-auth-token` : null;
+
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'sb-chhwujiajdhaihupvuix-auth-token' && !e.newValue) {
+      if (expectedAuthStorageKey && e.key === expectedAuthStorageKey && !e.newValue) {
         setUserTier('free');
         setUserHandle(null);
         setArtistHandle(null);
@@ -156,19 +173,23 @@ function DashboardContent() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [router]);
 
-  const verifyAndLoadWorkspace = async () => {
+
+    const verifyAndLoadWorkspace = async () => {
     try {
       setLoadingData(true);
-      const devTier = localStorage.getItem('mm_dev_tier');
+      const devTier =
+        isDevSuiteEnabled && typeof window !== 'undefined'
+          ? localStorage.getItem('mm_dev_tier')
+          : null;
       let ownerId = null;
 
       const { data: { session } } = await _supabase.auth.getSession();
       
-            if (session?.user) {
+      if (session?.user) {
         ownerId = session.user.id;
         setUserProfileId(ownerId);
         setUserEmail(session.user.email || null);
-      } else if (!accountId && !customHandle && (!devTier || devTier === 'logged_out')) {
+      } else if (!accountId && !customHandle && (!isDevSuiteEnabled || !devTier || devTier === 'logged_out')) {
         setUserProfileId(null);
         setUserHandle(null);
         setArtistHandle(null);
@@ -179,7 +200,7 @@ function DashboardContent() {
       }
 
 
-            let profileQuery = _supabase.from('profiles').select('*');
+      let profileQuery = _supabase.from('profiles').select('*');
       
       if (ownerId) {
         profileQuery = profileQuery.eq('id', ownerId);
@@ -192,22 +213,23 @@ function DashboardContent() {
 
       const { data: profileRecord } = await profileQuery.maybeSingle();
 
-            if (returnedTier && profileRecord) {
+      if (returnedTier && profileRecord) {
         await _supabase
           .from('profiles')
           .update({ tier: returnedTier, updated_at: new Date().toISOString() })
           .eq('id', profileRecord.id);
 
-        if (returnedTier === 'free') {
+        if (returnedTier === 'free' && typeof window !== 'undefined') {
           localStorage.removeItem('mm_dev_tier');
         }
       }
 
       const resolvedTier =
         returnedTier ||
-        (devTier && devTier !== 'logged_out' ? devTier : null) ||
+        (isDevSuiteEnabled && devTier && devTier !== 'logged_out' ? devTier : null) ||
         profileRecord?.tier ||
         'free';
+
 
       const individualArtistHandle =
         profileRecord?.artist_handle?.trim() ||
@@ -443,50 +465,69 @@ function DashboardContent() {
       .replace(/-+/g, '-');
   };
 
-  const handleSaveLabelSetup = async (e: React.FormEvent) => {
+    const handleSaveLabelSetup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!labelInputName.trim()) {
+    const trimmedName = labelInputName.trim();
+    if (!trimmedName) {
       alert('Please enter your Official Label Name.');
       return;
     }
 
-    let autoHandle = generateSlug(labelInputName) || `label-${Date.now().toString().slice(-5)}`;
+    if (!userProfileId) {
+      alert('Missing workspace profile ID. Please refresh and try again.');
+      return;
+    }
+
+    let autoHandle = generateSlug(trimmedName) || `imprint-${Date.now().toString().slice(-5)}`;
+    if (autoHandle.startsWith('label-')) {
+      autoHandle = `imprint-${autoHandle.slice(6) || Date.now().toString().slice(-5)}`;
+    }
 
     setSavingLabelSetup(true);
     try {
-      let { error } = await _supabase
+      let { data: updatedRow, error } = await _supabase
         .from('profiles')
         .update({
-          label_name: labelInputName.trim(),
+          label_name: trimmedName,
           handle: autoHandle,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', userProfileId);
+        .eq('id', userProfileId)
+        .select('id, label_name, handle')
+        .maybeSingle();
 
       if (error && error.code === '23505') {
         autoHandle = `${autoHandle}-${Math.floor(1000 + Math.random() * 9000)}`;
         const retry = await _supabase
           .from('profiles')
           .update({
-            label_name: labelInputName.trim(),
+            label_name: trimmedName,
             handle: autoHandle,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           })
-          .eq('id', userProfileId);
+          .eq('id', userProfileId)
+          .select('id, label_name, handle')
+          .maybeSingle();
+        updatedRow = retry.data;
         error = retry.error;
       }
 
       if (error) throw error;
+      if (!updatedRow?.label_name || !updatedRow?.handle) {
+        throw new Error('Label profile could not be verified after saving (check Supabase RLS/permissions for profiles).');
+      }
 
+      setUserHandle(updatedRow.handle);
       setIsLabelSetupModalOpen(false);
-      verifyAndLoadWorkspace();
+      await verifyAndLoadWorkspace();
     } catch (err: any) {
       console.error('Error updating label profile:', err);
-      alert(`Failed to save label details: ${err.message}`);
+      alert(`Failed to save label details: ${err?.message || 'Unknown error'}`);
     } finally {
       setSavingLabelSetup(false);
     }
   };
+
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -750,11 +791,11 @@ function DashboardContent() {
 
 
 
-    useEffect(() => {
+       useEffect(() => {
     verifyAndLoadWorkspace();
 
     const { data: { subscription } } = _supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
+      if (event === 'SIGNED_OUT') {
         setUserProfileId(null);
         setUserHandle(null);
         setArtistHandle(null);
@@ -762,8 +803,11 @@ function DashboardContent() {
         router.replace('/auth');
         return;
       }
-      verifyAndLoadWorkspace();
+      if (session) {
+        verifyAndLoadWorkspace();
+      }
     });
+
 
     const handlePageShow = (event: PageTransitionEvent) => {
       if (event.persisted) {
@@ -796,15 +840,36 @@ function DashboardContent() {
   );
 
   const displayedTracks = showAllTracks ? filteredTracks : filteredTracks.slice(0, 3);
-  const uniqueAlbums = Array.from(
-    new Set(
-      tracks.flatMap(t => t.album_name ? t.album_name.split(',').map((s: string) => s.trim()) : [])
-    )
-  ).filter(Boolean).sort((a, b) => {
-    const indexA = tracks.find(t => t.album_name?.split(',').map((s: string) => s.trim()).includes(a))?.album_index ?? 9999;
-    const indexB = tracks.find(t => t.album_name?.split(',').map((s: string) => s.trim()).includes(b))?.album_index ?? 9999;
-    return indexA - indexB;
+    const uniqueAlbums = Array.from(
+new Set(
+tracks.flatMap(t => t.album_name ? t.album_name.split(',').map((s: string) => s.trim()) : [])
+)
+).filter(Boolean).sort((a, b) => {
+const indexA = tracks.find(t => t.album_name?.split(',').map((s: string) => s.trim()).includes(a))?.album_index ?? 9999;
+const indexB = tracks.find(t => t.album_name?.split(',').map((s: string) => s.trim()).includes(b))?.album_index ?? 9999;
+return indexA - indexB;
+});
+
+  const filteredAlbums = uniqueAlbums.filter((albumName) => {
+    const q = albumSearchQuery.trim().toLowerCase();
+    if (!q) return true;
+    if (albumName.toLowerCase().includes(q)) return true;
+
+    return tracks.some((t) => {
+      const belongsToAlbum = t.album_name
+        ?.split(',')
+        .map((s: string) => s.trim())
+        .includes(albumName);
+      if (!belongsToAlbum) return false;
+      return (
+        t.title?.toLowerCase().includes(q) ||
+        t.artist_handle?.toLowerCase().includes(q)
+      );
+    });
   });
+
+const displayedAlbums = showAllAlbums ? filteredAlbums : filteredAlbums.slice(0, 3);
+
 
 
 
@@ -956,7 +1021,7 @@ function DashboardContent() {
           </p>
         </div>
         
-        <button 
+                <button 
           onClick={() => setIsShareModalOpen(true)}
           className="bg-[#ff8c00] hover:bg-[#e07b00] text-neutral-950 font-extrabold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-[#ff8c00]/10"
         >
@@ -964,7 +1029,26 @@ function DashboardContent() {
         </button>
       </div>
 
+      {(scheduledTier === 'artist' || cancelAtPeriodEnd) && (
+        <div className="bg-[#ff8c00]/10 border border-[#ff8c00]/40 rounded-2xl p-4 text-left flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <span className="text-[10px] bg-[#ff8c00] text-neutral-950 font-black uppercase px-2 py-0.5 rounded">
+              Scheduled Billing Change
+            </span>
+            <p className="text-xs text-white font-semibold pt-1">
+              {scheduledTier === 'artist'
+                ? 'Your workspace will switch from Label Executive to Independent Artist at the end of your current paid billing period.'
+                : 'Your paid subscription is set to cancel at the end of your current paid billing period, after which your workspace will move to the Free tier.'}
+            </p>
+            <p className="text-[11px] text-neutral-400">
+              You keep full access to your current tier benefits until the current cycle finishes.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Quick Metrics Grid */}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
         {userTier === 'label' ? (
           <div className="p-4 bg-neutral-900 border border-neutral-800 rounded-xl flex items-center gap-4">
@@ -998,7 +1082,7 @@ function DashboardContent() {
               {userTier === 'free' ? 'Free Tier (10 Track Limit)' : 'Independent Artist Tier'}
             </h3>
                         <p className="text-xs text-neutral-400">
-              {userTier === 'free' ? '15% marketplace commission' : '10% Artist / 5% Label commission'}
+              {userTier === 'free' ? '15% marketplace commission' : '10% Marketplace commission'}
             </p>
 
           </div>
@@ -1089,13 +1173,25 @@ function DashboardContent() {
                 const isSelf = artist.id === userProfileId;
                 const activeMainId = mainArtistProfileId || userProfileId;
                 const isMainArtist = artist.id === activeMainId;
-                const targetHandle = artist.artist_handle || artist.handle || 'lakim';
-                const artistPlayerUrl = `${baseUrl}/artist/${targetHandle}`;
-                const displayName = artist.name || artist.handle || 'Artist';
+                                const targetHandle = artist.artist_handle || artist.handle || 'lakim';
+                const artistPlayerUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/artist/${targetHandle}?view=player`;
 
-                return (
-                  <div key={artist.id} className="bg-neutral-950 p-3 rounded-xl border border-neutral-800 flex items-center justify-between gap-3">
-                    <div className="truncate">
+                const formattedArtistName = artist.artist_handle
+                  ?.trim()
+                  .replace(/[-_]+/g, ' ')
+                  .replace(/\b\w/g, (ch: string) => ch.toUpperCase());
+
+                const displayName =
+                  artist.stage_name?.trim() ||
+                  formattedArtistName ||
+                  artist.name?.trim() ||
+                  artist.handle?.trim() ||
+                  'Artist';
+
+
+                              return (
+                  <div key={artist.id} className="bg-neutral-950 p-3 rounded-xl border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+                    <div className="min-w-0">
                       <div className="text-xs font-bold text-white truncate">
                         {displayName}{' '}
                         {isMainArtist && (
@@ -1106,7 +1202,8 @@ function DashboardContent() {
                       </div>
                       <div className="text-[10px] text-[#ff8c00] truncate">@{targetHandle} (Audio Player)</div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 flex-wrap justify-start sm:justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-neutral-900">
+
                       {!isMainArtist && (
                         <button
                           type="button"
@@ -1358,76 +1455,77 @@ function DashboardContent() {
           </div>
         ) : (
           <div className="space-y-3">
-            {displayedTracks.map((track) => {
+                        {displayedTracks.map((track) => {
+              const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
               const dropUrl = `${baseUrl}/artist/${track.artist_handle || labelCorporateHandle}?drop=${track.id}`;
-              const downloadUrl = track.audio_file_path ? `https://chhwujiajdhaihupvuix.supabase.co/storage/v1/object/public/v2-audio-vault/${track.audio_file_path}` : null;
-              const artworkUrl = track.artwork_url || (track.artwork_file_path ? `https://chhwujiajdhaihupvuix.supabase.co/storage/v1/object/public/v2-cover-art/${track.artwork_file_path}` : null);
+              const downloadUrl = track.audio_file_path && supabaseUrl ? `${supabaseUrl}/storage/v1/object/public/v2-audio-vault/${track.audio_file_path}` : null;
+              const artworkUrl = track.artwork_url || (track.artwork_file_path && supabaseUrl ? `${supabaseUrl}/storage/v1/object/public/v2-cover-art/${track.artwork_file_path}` : null);
+
 
                             const isTrackSelected = selectedTrackIds.some((id) => String(id) === String(track.id));
 
-              return (
-                <div key={track.id} className="bg-neutral-950 border border-neutral-800/80 p-4 rounded-xl flex justify-between items-center gap-4">
-                  <div className="flex items-center gap-3 truncate">
-                    <input
-                      type="checkbox"
-                      checked={isTrackSelected}
-                      onChange={() => toggleSelectTrack(track.id)}
-                      aria-label={`Select ${track.title}`}
-                      className="w-4 h-4 rounded accent-[#ff8c00] cursor-pointer flex-shrink-0"
-                    />
-                    <div className="w-10 h-10 rounded-lg bg-neutral-900 border border-neutral-800 overflow-hidden flex-shrink-0 flex items-center justify-center">
-
-                      {artworkUrl ? (
-                        <img src={artworkUrl} alt={track.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-[9px] font-black text-neutral-600">ART</span>
-                      )}
-                    </div>
-                    <div className="truncate">
-                      <div className="flex items-center gap-2">
-                        <h4 className={`text-sm font-bold truncate ${track.is_archived ? 'text-neutral-500 line-through' : 'text-white'}`}>
-                          {track.title}
-                        </h4>
-                        {track.is_archived && (
-                          <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-md font-extrabold uppercase tracking-wider flex-shrink-0">
-                            Archived (10-Track Cap)
-                          </span>
+                            return (
+                <div key={track.id} className="bg-neutral-950 border border-neutral-800/80 p-3.5 sm:p-4 rounded-xl flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4">
+                  <div className="flex items-center justify-between sm:justify-start gap-3 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={isTrackSelected}
+                        onChange={() => toggleSelectTrack(track.id)}
+                        aria-label={`Select ${track.title}`}
+                        className="w-4 h-4 rounded accent-[#ff8c00] cursor-pointer flex-shrink-0"
+                      />
+                      <div className="w-10 h-10 rounded-lg bg-neutral-900 border border-neutral-800 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                        {artworkUrl ? (
+                          <img src={artworkUrl} alt={track.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-[9px] font-black text-neutral-600">ART</span>
                         )}
                       </div>
-                                            <span className="text-xs text-neutral-500 truncate block">
-                        {track.album_name ? `Album: ${track.album_name}` : 'Direct Download Enabled'}{' '}
-                                                   {(() => {
-                          const cleanTrackHandle = track.artist_handle?.trim();
-                          const cleanUserHandle = userHandle?.trim();
-                          const cleanMainHandle = artistHandle?.trim();
-                          const isLabelHandle =
-                            Boolean(cleanUserHandle) &&
-                            Boolean(cleanTrackHandle) &&
-                            cleanTrackHandle!.toLowerCase() === cleanUserHandle!.toLowerCase();
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className={`text-sm font-bold truncate ${track.is_archived ? 'text-neutral-500 line-through' : 'text-white'}`}>
+                            {track.title}
+                          </h4>
+                          {track.is_archived && (
+                            <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-md font-extrabold uppercase tracking-wider flex-shrink-0">
+                              Archived (10-Track Cap)
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-neutral-500 truncate block">
+                          {track.album_name ? `Album: ${track.album_name}` : 'Direct Download Enabled'}{' '}
+                          {(() => {
+                            const cleanTrackHandle = track.artist_handle?.trim();
+                            const cleanUserHandle = userHandle?.trim();
+                            const cleanMainHandle = artistHandle?.trim();
+                            const isLabelHandle =
+                              Boolean(cleanUserHandle) &&
+                              Boolean(cleanTrackHandle) &&
+                              cleanTrackHandle!.toLowerCase() === cleanUserHandle!.toLowerCase();
 
-                          const shownHandle =
-                            !cleanTrackHandle || isLabelHandle
-                              ? cleanMainHandle || cleanTrackHandle
-                              : cleanTrackHandle;
+                            const shownHandle =
+                              !cleanTrackHandle || isLabelHandle
+                                ? cleanMainHandle || cleanTrackHandle
+                                : cleanTrackHandle;
 
-                          return shownHandle ? `• @${shownHandle}` : '';
-                        })()}
-
-
-
-                      </span>
-
+                            return shownHandle ? `• @${shownHandle}` : '';
+                          })()}
+                        </span>
+                      </div>
                     </div>
+
+                    <span className="sm:hidden text-xs font-bold text-emerald-400 flex-shrink-0">${track.price}</span>
                   </div>
 
-                  <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-                    <span className="text-xs sm:text-sm font-bold text-emerald-400">${track.price}</span>
-                    
+                  <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-start sm:justify-end flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-neutral-900">
+                    <span className="hidden sm:inline text-sm font-bold text-emerald-400">${track.price}</span>
+
                     {downloadUrl && (
                       <a
                         href={downloadUrl}
                         download
-                        className="bg-neutral-800 hover:bg-neutral-700 text-white font-bold p-2 sm:px-3 sm:py-1.5 rounded-lg text-xs cursor-pointer border border-neutral-700 transition-all whitespace-nowrap flex items-center gap-1.5"
+                        className="bg-neutral-800 hover:bg-neutral-700 text-white font-bold px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs cursor-pointer border border-neutral-700 transition-all whitespace-nowrap flex items-center gap-1"
                         title="Download Audio Master"
                       >
                         <svg className="w-3.5 h-3.5 text-[#ff8c00]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -1435,48 +1533,49 @@ function DashboardContent() {
                           <polyline points="7 10 12 15 17 10"></polyline>
                           <line x1="12" y1="15" x2="12" y2="3"></line>
                         </svg>
-                        <span className="hidden sm:inline">Download</span>
+                        <span>Download</span>
                       </a>
                     )}
-                    
+
                     {userTier !== 'free' && (
                       <button
                         onClick={() => setSelectedTrackForEdit(track)}
-                        className="bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold p-2 sm:px-3 sm:py-1.5 rounded-lg text-xs cursor-pointer border border-neutral-700 transition-all whitespace-nowrap flex items-center gap-1.5"
+                        className="bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs cursor-pointer border border-neutral-700 transition-all whitespace-nowrap flex items-center gap-1"
                         title="Edit Metadata"
                       >
                         <svg className="w-3.5 h-3.5 text-neutral-400" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                         </svg>
-                        <span className="hidden sm:inline">Edit</span>
+                        <span>Edit</span>
                       </button>
                     )}
 
                     {userTier !== 'free' && !track.is_archived && (
                       <button
                         onClick={() => handleCopy(dropUrl, `drop_${track.id}`)}
-                        className="bg-neutral-800 hover:bg-neutral-700 text-[#ff8c00] font-bold p-2 sm:px-3 sm:py-1.5 rounded-lg text-xs cursor-pointer border border-neutral-700 transition-all whitespace-nowrap flex items-center gap-1.5"
+                        className="bg-neutral-800 hover:bg-neutral-700 text-[#ff8c00] font-bold px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-lg text-[11px] sm:text-xs cursor-pointer border border-neutral-700 transition-all whitespace-nowrap flex items-center gap-1"
                       >
                         <svg className="w-3.5 h-3.5 text-[#ff8c00]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                         </svg>
-                        <span className="hidden sm:inline">{copiedKey === `drop_${track.id}` ? 'Copied!' : 'Drop Link'}</span>
+                        <span>{copiedKey === `drop_${track.id}` ? 'Copied!' : 'Drop Link'}</span>
                       </button>
                     )}
 
                     <button
                       onClick={() => handleDeleteTrack(track.id, track.title, track.audio_file_path, track.artwork_file_path)}
-                      className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 cursor-pointer text-xs flex items-center gap-1"
+                      className="px-2.5 py-1.5 sm:p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 cursor-pointer text-[11px] sm:text-xs flex items-center gap-1"
                       title="Delete Track"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                       </svg>
-                      <span className="hidden sm:inline">Delete</span>
+                      <span>Delete</span>
                     </button>
                   </div>
                 </div>
               );
+
             })}
           </div>
         )}
@@ -1501,13 +1600,36 @@ function DashboardContent() {
               <h3 className="font-semibold text-lg text-[#ff8c00]">Albums & Projects</h3>
               <p className="text-sm text-neutral-400">Manage your published project groupings and track sequences.</p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+              {uniqueAlbums.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextOpen = !isAlbumSearchOpen;
+                    setIsAlbumSearchOpen(nextOpen);
+                    if (!nextOpen) setAlbumSearchQuery('');
+                  }}
+                  className={`font-bold px-3 py-2 rounded-xl text-xs border cursor-pointer transition-all flex items-center gap-1.5 ${
+                    isAlbumSearchOpen
+                      ? 'bg-[#ff8c00] text-neutral-950 border-[#ff8c00]'
+                      : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                  {isAlbumSearchOpen ? 'Hide Search' : 'Search'}
+                </button>
+              )}
+
               <button
                 onClick={() => setIsAddToAlbumModalOpen(true)}
                 className="bg-neutral-800 hover:bg-neutral-700 text-[#ff8c00] font-bold px-3 py-2 rounded-xl text-xs border border-neutral-700 cursor-pointer"
               >
                 {uniqueAlbums.length > 0 ? '+ Add Songs to Album' : '+ Create Album'}
               </button>
+
 
               {uniqueAlbums.length > 1 && (
                 <button
@@ -1520,21 +1642,54 @@ function DashboardContent() {
             </div>
           </div>
 
+                    {isAlbumSearchOpen && (
+            <div className="bg-neutral-950 p-4 rounded-xl border border-neutral-800 space-y-2 animate-fadeIn">
+              <div className="flex justify-between items-center">
+                <label className="text-xs text-neutral-400 font-bold uppercase tracking-wider">Filter Albums & Projects</label>
+                {albumSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setAlbumSearchQuery('')}
+                    className="text-xs text-[#ff8c00] hover:underline cursor-pointer"
+                  >
+                    Clear filter
+                  </button>
+                )}
+              </div>
+              <input
+                type="text"
+                placeholder="Search by album/project title, song, or artist handle..."
+                value={albumSearchQuery}
+                onChange={(e) => setAlbumSearchQuery(e.target.value)}
+                className="w-full bg-neutral-900 border border-neutral-800 focus:border-[#ff8c00] px-4 py-2.5 rounded-xl text-xs text-white outline-none"
+                autoFocus
+              />
+            </div>
+          )}
+
           {uniqueAlbums.length === 0 ? (
             <div className="text-neutral-500 text-xs py-4 text-center bg-neutral-950 rounded-xl border border-neutral-800">
               No albums created yet. Add an album name when uploading tracks!
             </div>
-          ) : (
+          ) : displayedAlbums.length === 0 ? (
+            <div className="text-neutral-500 text-xs py-6 text-center bg-neutral-950 rounded-xl border border-neutral-800">
+              No albums or projects found matching &ldquo;{albumSearchQuery}&rdquo;.
+            </div>
+                    ) : (
             <div className="space-y-3">
-              {uniqueAlbums.map((albumName, idx) => {
+
+              {displayedAlbums.map((albumName, idx) => {
+
                 const albumTracksList = tracks.filter(t => 
                   t.album_name?.split(',').map((s: string) => s.trim()).includes(albumName)
                 );
 
+                                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
                 const masterArtUrl = albumMetaMap[albumName] || albumMetaMap[albumName?.trim().toLowerCase()];
                 const firstTrackWithArt = albumTracksList.find(t => t.artwork_url || t.artwork_file_path);
-                const trackArtUrl = firstTrackWithArt?.artwork_url || (firstTrackWithArt?.artwork_file_path ? `https://chhwujiajdhaihupvuix.supabase.co/storage/v1/object/public/v2-cover-art/${firstTrackWithArt.artwork_file_path}` : null);
+                const trackArtUrl = firstTrackWithArt?.artwork_url || (firstTrackWithArt?.artwork_file_path && supabaseUrl ? `${supabaseUrl}/storage/v1/object/public/v2-cover-art/${firstTrackWithArt.artwork_file_path}` : null);
                 const albumCoverUrl = masterArtUrl || trackArtUrl;
+
 
                 return (
                   <div key={idx} className="bg-neutral-950 border border-neutral-800/80 p-3.5 sm:p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 transition-all hover:border-neutral-700">
@@ -1582,7 +1737,7 @@ function DashboardContent() {
                         className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:border-red-500/40 cursor-pointer transition-all flex items-center justify-center shadow-sm"
                         title="Delete Album"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                         </svg>
                       </button>
@@ -1592,8 +1747,21 @@ function DashboardContent() {
               })}
             </div>
           )}
+
+                    {filteredAlbums.length > 3 && (
+            <div className="pt-3 text-center">
+              <button
+                onClick={() => setShowAllAlbums(!showAllAlbums)}
+                className="bg-neutral-900 hover:bg-neutral-800 text-[#ff8c00] font-bold px-5 py-2.5 rounded-xl text-xs border border-neutral-800 transition-all cursor-pointer"
+              >
+                {showAllAlbums ? 'Show Less' : `Show All Albums (${filteredAlbums.length}) ↓`}
+              </button>
+            </div>
+          )}
+
         </div>
       )}
+
 
       {/* Share / Copy Links Modal */}
       {isShareModalOpen && (
@@ -1651,7 +1819,22 @@ function DashboardContent() {
 
 const artistPlayerUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/artist/${targetHandle}`;
 
-                        const displayName = isSelf ? (artist.name || artist.handle || 'Main Artist') : (artist.name || artist.handle);
+                        const formattedModalHandle = artist.artist_handle
+                          ?.trim()
+                          .replace(/[-_]+/g, ' ')
+                          .replace(/\b\w/g, (ch: string) => ch.toUpperCase());
+
+                        const resolvedRosterLabel =
+                          artist.stage_name?.trim() ||
+                          formattedModalHandle ||
+                          artist.name?.trim() ||
+                          artist.handle?.trim() ||
+                          'Artist';
+
+                        const displayName = isSelf
+                          ? (artist.stage_name?.trim() || artist.name || artist.handle || 'Main Artist')
+                          : resolvedRosterLabel;
+
 
                         return (
                           <div key={artist.id} className="bg-neutral-950 border border-neutral-800 p-4 rounded-xl flex justify-between items-center">
@@ -1797,10 +1980,16 @@ const artistPlayerUrl = `${typeof window !== 'undefined' ? window.location.origi
         onSave={(updated) => setTracks(updated)} 
       />
       
-      <UploadTrackModal 
+            <UploadTrackModal 
         isOpen={isUploadModalOpen} 
         onClose={() => setIsUploadModalOpen(false)} 
-        onTrackAdded={(newTrack) => setTracks([newTrack, ...tracks])} 
+        onTrackAdded={(newTrack) => {
+          if (newTrack) {
+            setTracks((prev) => [newTrack, ...prev]);
+          }
+          verifyAndLoadWorkspace();
+        }} 
+
         userTier={userTier} 
         currentTrackCount={tracks.length} 
         artistHandle={artistHandle || customHandle || userHandle || undefined} 
@@ -1809,15 +1998,19 @@ const artistPlayerUrl = `${typeof window !== 'undefined' ? window.location.origi
         existingAlbums={uniqueAlbums}
       />
 
-      <AddToAlbumModal
+            <AddToAlbumModal
         isOpen={isAddToAlbumModalOpen}
         onClose={() => setIsAddToAlbumModalOpen(false)}
         tracks={tracks}
         existingAlbums={uniqueAlbums}
-        onTracksUpdated={(updated) => setTracks(updated)}
+        onTracksUpdated={(updated) => {
+          setTracks(updated);
+          verifyAndLoadWorkspace();
+        }}
         userTier={userTier}
         rosterArtists={rosterArtistsList}
       />
+
 
       {isAddArtistModalOpen && (
         <AddArtistModal 

@@ -126,13 +126,38 @@ export default function UploadTrackModal({
     setBatchItems((prev) => prev.filter((item) => item.id !== id));
   };
 
+    const artistStorageKey = parentLabelId
+    ? `mm_upload_artist_${parentLabelId}`
+    : 'mm_upload_artist_default';
+
   useEffect(() => {
     if (isOpen) {
+      let savedHandle = '';
+      try {
+        savedHandle = localStorage.getItem(artistStorageKey)?.trim() || '';
+      } catch {
+        savedHandle = '';
+      }
+
+      const matchedSavedOption = normalizedRosterOptions.find(
+        (opt) => opt.value.toLowerCase() === savedHandle.toLowerCase()
+      );
+
       const preferred =
+        matchedSavedOption?.value ||
         artistHandle?.trim() ||
         normalizedRosterOptions[0]?.value ||
         '';
+
       setSelectedArtistHandle(preferred);
+      if (preferred) {
+        try {
+          localStorage.setItem(artistStorageKey, preferred);
+        } catch {
+          // Ignore storage quota/private-mode errors
+        }
+      }
+
       setErrorMsg(null);
       setUploadProgressText(null);
       if (userTier === 'free') {
@@ -140,7 +165,8 @@ export default function UploadTrackModal({
         setBatchItems([]);
       }
     }
-  }, [isOpen, artistHandle, rosterArtists, userTier]);
+  }, [isOpen, artistHandle, parentLabelId, rosterArtists, userTier]);
+
 
 
 
@@ -313,7 +339,6 @@ export default function UploadTrackModal({
       setTidalUrl('');
       setYoutubeUrl('');
       setPandoraUrl('');
-      setSelectedArtistHandle('');
       setAgreedToCopyrightWarranty(false);
       onClose();
     } catch (err: any) {
@@ -403,11 +428,23 @@ export default function UploadTrackModal({
             <div className="space-y-1.5 p-3 bg-neutral-950 border border-[#ff8c00]/30 rounded-xl">
               <label className="text-xs font-bold text-[#ff8c00] uppercase tracking-wider block">Assign Track To Roster Artist *</label>
               <select
-                required
-                value={selectedArtistHandle}
-                onChange={(e) => setSelectedArtistHandle(e.target.value)}
-                className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff8c00]"
-              >
+required
+value={selectedArtistHandle}
+onChange={(e) => {
+const nextHandle = e.target.value;
+setSelectedArtistHandle(nextHandle);
+try {
+if (nextHandle) {
+localStorage.setItem(artistStorageKey, nextHandle);
+} else {
+localStorage.removeItem(artistStorageKey);
+}
+} catch {
+// Ignore storage quota/private-mode errors
+}
+}}
+className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#ff8c00]"
+>
                    <option value="">-- Select Roster Artist --</option>
                 {normalizedRosterOptions.map((opt) => (
                   <option key={opt.key} value={opt.value}>

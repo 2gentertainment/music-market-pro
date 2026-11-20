@@ -17,26 +17,32 @@ export default function HomePage() {
   const [formError, setFormError] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userTier, setUserTier] = useState<string>('free');
   const [userHandle, setUserHandle] = useState<string | null>(null);
   const [copiedHeroLink, setCopiedHeroLink] = useState(false);
 
+  const isDevSuiteEnabled =
+    process.env.NODE_ENV === 'development' &&
+    process.env.NEXT_PUBLIC_ENABLE_DEV_SUITE === 'true';
+
   const syncWorkspaceState = async () => {
-    const devTier = typeof window !== 'undefined' ? localStorage.getItem('mm_dev_tier') : null;
-    if (devTier && devTier !== 'logged_out') {
-      setIsLoggedIn(true);
-      setUserTier(devTier);
-      setUserHandle(devTier === 'label' ? 'label-imprint' : 'new-artist');
-      return;
-    } else if (devTier === 'logged_out') {
-      setIsLoggedIn(false);
-      setUserTier('free');
-      setUserHandle(null);
-      return;
+    if (isDevSuiteEnabled && typeof window !== 'undefined') {
+      const devTier = localStorage.getItem('mm_dev_tier');
+      if (devTier && devTier !== 'logged_out') {
+        setIsLoggedIn(true);
+        setUserTier(devTier);
+        setUserHandle(devTier === 'label' ? 'label-imprint' : 'new-artist');
+        return;
+      } else if (devTier === 'logged_out') {
+        setIsLoggedIn(false);
+        setUserTier('free');
+        setUserHandle(null);
+        return;
+      }
     }
 
-        try {
+    try {
       const { data: { session } } = await _supabase.auth.getSession();
       if (session?.user) {
         setIsLoggedIn(true);
@@ -50,12 +56,14 @@ export default function HomePage() {
         if (profile?.handle) setUserHandle(profile.handle);
       } else {
         setIsLoggedIn(false);
+        setUserTier('free');
+        setUserHandle(null);
       }
     } catch (err) {
-
       console.error("Session fetch error:", err);
     }
   };
+
 
   useEffect(() => {
     syncWorkspaceState();
@@ -64,8 +72,9 @@ export default function HomePage() {
     return () => window.removeEventListener('mm_tier_changed', handleGlobalTierChange);
   }, []);
 
-  const handleCopyStorefrontLink = () => {
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://2g-ent.com';
+    const handleCopyStorefrontLink = () => {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://musicmarket.app';
+
     const storeUrl = userTier === 'label'
       ? `${baseUrl}/artist/${userHandle || 'workspace'}`
       : `${baseUrl}/artist/workspace/${userHandle || 'workspace'}`;
@@ -121,11 +130,12 @@ export default function HomePage() {
       if (authData?.user) {
         const cleanHandle = generateSlug(handleName) || `user-${Date.now().toString().slice(-5)}`;
         
-        const { error: dbError } = await _supabase.from('profiles').upsert({
+                const { error: dbError } = await _supabase.from('profiles').upsert({
           id: authData.user.id,
           email: email,
           handle: cleanHandle,
           artist_handle: cleanHandle, // 👈 Ensures individual artist player slug is saved immediately on sign-up
+          stage_name: selectedTier !== 'label' ? handleName.trim() : null,
           name: selectedTier !== 'label' ? handleName.trim() : null,
           label_name: selectedTier === 'label' ? handleName.trim() : null,
           full_name: handleName.trim(),
@@ -197,7 +207,7 @@ export default function HomePage() {
   };
 
   const tierDetails = {
-    free: { title: "Free Hub", price: "100% Free Setup", description: "For Artists: Centralize your core catalog and link your payout rails to start selling directly with 15% platform split.", features: ["10-song centralized catalog hub for fans & A&Rs", "Stripe Express account linking for instant direct payouts", "Direct track sales enabled (15% commission split)", "Instant upgrade to unlock 0% fees anytime"] },
+    free: { title: "Free Hub", price: "100% Free Setup", description: "For Artists: Centralize your core catalog and link your payout rails to start selling directly with 15% platform split.", features: ["10-song centralized catalog hub for fans & A&Rs", "Stripe Express account linking for instant direct payouts", "Direct track sales enabled (15% commission split)", "Instant upgrade / downgrade anytime"] },
         artist: { title: "Independent Artist", price: "$9.99 / mo", description: "For Artists: Ready to bridge listeners, lower platform commission to 10%, and scale their independent movement.", features: ["Unlimited catalog uploads & custom player branding", "Stripe Express account linking for direct payouts", "10% platform commission split (down from 15%)", "Built-in audience capture & subscriber fan lists"] },
     label: { title: "Imprint & Label", price: "$29.99 / mo", description: "For Record Labels & Management Teams: Controlling multi-artist rosters and shared pipelines.", features: ["Centralized management for full artist rosters", "Stripe Express account linking across all roster profiles", "Unified roster growth tracking & analytics", "5% platform commission split across artist catalogs"] }
 

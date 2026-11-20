@@ -1,11 +1,23 @@
 import { NextResponse } from 'next/server';
 
 export async function GET(request) {
-  const { searchParams } = new URL(request.url);
+  const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
 
   if (!code) {
     return NextResponse.json({ error: 'No code provided' }, { status: 400 });
+  }
+
+  const clientId = process.env.AWEBER_CLIENT_ID;
+  const clientSecret = process.env.AWEBER_CLIENT_SECRET;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || origin;
+  const redirectUri = `${baseUrl.replace(/\/$/, '')}/auth/callback`;
+
+  if (!clientId || !clientSecret) {
+    return NextResponse.json(
+      { error: 'AWeber OAuth credentials are not configured' },
+      { status: 500 }
+    );
   }
 
   try {
@@ -14,12 +26,13 @@ export async function GET(request) {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
-        client_id: process.env.AWEBER_CLIENT_ID || 'moj5CVeEMIYMAqtk0ZWeDMIdj7UAE2A1',
-        client_secret: process.env.AWEBER_CLIENT_SECRET || 'zOgLeuFRyW7G2nrtS5beMSPIb9AZNovF',
+        client_id: clientId,
+        client_secret: clientSecret,
         code: code,
-        redirect_uri: 'http://localhost:3000/auth/callback',
+        redirect_uri: redirectUri,
       }),
     });
+
 
     const data = await tokenResponse.json();
 
@@ -28,16 +41,11 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Token exchange failed', details: data }, { status: 500 });
     }
 
-    console.log('\n========================================');
-    console.log('SUCCESS! NEW AWEBER TOKENS:');
-    console.log(`AWEBER_ACCESS_TOKEN=${data.access_token}`);
-    console.log(`AWEBER_REFRESH_TOKEN=${data.refresh_token}`);
-    console.log('========================================\n');
-
-    return NextResponse.json({
+       return NextResponse.json({
       success: true,
-      message: 'Tokens generated! Copy them from your Next.js terminal into .env.local.',
+      message: 'AWeber authorization completed.',
     });
+
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

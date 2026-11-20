@@ -80,10 +80,16 @@ export async function syncCreatorToAweber({
     body: JSON.stringify(subscriberPayload),
   });
 
-  if (aweberRes.status === 401) {
-    const clientId = process.env.AWEBER_CLIENT_ID || 'moj5CVeEMIYMAqtk0ZWeDMIdj7UAE2A1';
-    const clientSecret = process.env.AWEBER_CLIENT_SECRET || 'zOgLeuFRyW7G2nrtS5beMSPIb9AZNovF';
+    if (aweberRes.status === 401) {
+    const clientId = process.env.AWEBER_CLIENT_ID;
+    const clientSecret = process.env.AWEBER_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      throw new Error('Missing AWEBER_CLIENT_ID or AWEBER_CLIENT_SECRET environment variables for token refresh');
+    }
+
     const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
 
     const refreshRes = await fetch('https://auth.aweber.com/oauth2/token', {
       method: 'POST',

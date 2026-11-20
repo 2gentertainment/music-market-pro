@@ -201,7 +201,58 @@ export default function LabelStorefront({ profile, tracks, labelHandle }: LabelS
   }, [audioInstance]);
 
 
+    function getVisitorId(): string {
+    if (typeof window === 'undefined') return 'server';
+    let vid = localStorage.getItem('mm_visitor_id');
+    if (!vid) {
+      vid = `v_${Math.random().toString(36).slice(2, 10)}_${Date.now()}`;
+      localStorage.setItem('mm_visitor_id', vid);
+    }
+    return vid;
+  }
+
+  async function logStorefrontEvent(
+    eventType: 'play' | 'outbound_stream',
+    track: Track,
+    extraMetadata: Record<string, any> = {}
+  ) {
+    if (!track?.id) return;
+    const rawHandle = track.artist_handle?.trim();
+    const isLabelImprint =
+      Boolean(rawHandle) &&
+      Boolean(labelHandle?.trim()) &&
+      rawHandle!.toLowerCase() === labelHandle.trim().toLowerCase();
+
+    const resolvedHandle = (
+      (!rawHandle || isLabelImprint ? mainArtistHandle || firstRosterArtist?.handle : rawHandle) ||
+      labelHandle ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+    if (!resolvedHandle) return;
+
+    try {
+      await _supabase.from('analytics_events_v2').insert({
+        event_type: eventType,
+        track_id: String(track.id),
+        artist_handle: resolvedHandle,
+        visitor_id: getVisitorId(),
+        metadata: {
+          track_title: track.title || null,
+          album_name: track.album_name || null,
+          source: 'label_storefront',
+          ...extraMetadata,
+        },
+      });
+    } catch (err) {
+      console.error(`Failed to log ${eventType} event on LabelStorefront:`, err);
+    }
+  }
+
   const togglePlayTrack = (track: Track) => {
+
     if (currentTrack?.id === track.id && isPlaying) {
       audioInstance?.pause();
       setIsPlaying(false);
@@ -217,11 +268,17 @@ export default function LabelStorefront({ profile, tracks, labelHandle }: LabelS
       return;
     }
 
-    const newAudio = new Audio(track.audio_file_path);
-    newAudio.play().catch(err => console.error("Audio playback error:", err));
+        const newAudio = new Audio(track.audio_file_path);
+    newAudio
+      .play()
+      .then(() => {
+        logStorefrontEvent('play', track);
+      })
+      .catch(err => console.error("Audio playback error:", err));
     setAudioInstance(newAudio);
     setCurrentTrack(track);
     setIsPlaying(true);
+
 
     newAudio.onended = () => setIsPlaying(false);
   };
@@ -428,31 +485,33 @@ export default function LabelStorefront({ profile, tracks, labelHandle }: LabelS
 
               </div>
 
-              {/* Streaming Platform Badges */}
+                            {/* Streaming Platform Badges */}
               {isPaidTier && (
                 <div className="flex items-center gap-2 flex-wrap pt-1">
-                  {currentTrack.spotify_url && (
-                    <a href={currentTrack.spotify_url} target="_blank" rel="noreferrer" className="text-[11px] bg-neutral-950 border border-neutral-800 hover:border-emerald-500 text-emerald-400 px-3 py-1 rounded-lg font-bold">
-                      Spotify
-                    </a>
-                  )}
-                  {currentTrack.apple_music_url && (
-                    <a href={currentTrack.apple_music_url} target="_blank" rel="noreferrer" className="text-[11px] bg-neutral-950 border border-neutral-800 hover:border-pink-500 text-pink-400 px-3 py-1 rounded-lg font-bold">
-                      Apple Music
-                    </a>
-                  )}
-                  {currentTrack.tidal_url && (
-                    <a href={currentTrack.tidal_url} target="_blank" rel="noreferrer" className="text-[11px] bg-neutral-950 border border-neutral-800 hover:border-cyan-400 text-cyan-400 px-3 py-1 rounded-lg font-bold">
-                      Tidal
-                    </a>
-                  )}
-                  {currentTrack.youtube_url && (
-                    <a href={currentTrack.youtube_url} target="_blank" rel="noreferrer" className="text-[11px] bg-neutral-950 border border-neutral-800 hover:border-red-500 text-red-400 px-3 py-1 rounded-lg font-bold">
-                      YouTube
-                    </a>
-                  )}
+                  {[
+                    { label: 'Spotify', url: currentTrack.spotify_url, cls: 'hover:border-emerald-500 text-emerald-400' },
+                    { label: 'Apple Music', url: currentTrack.apple_music_url, cls: 'hover:border-pink-500 text-pink-400' },
+                    { label: 'Tidal', url: currentTrack.tidal_url, cls: 'hover:border-cyan-400 text-cyan-400' },
+                    { label: 'YouTube', url: currentTrack.youtube_url, cls: 'hover:border-red-500 text-red-400' },
+                    { label: 'Pandora', url: currentTrack.pandora_url, cls: 'hover:border-blue-400 text-blue-400' },
+                  ]
+                    .filter((item) => Boolean(item.url?.trim()))
+                    .map((item) => (
+                      <a
+                        key={item.label}
+                        href={item.url!}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => logStorefrontEvent('outbound_stream', currentTrack, { platform: item.label })}
+                        className={`text-[11px] bg-neutral-950 border border-neutral-800 ${item.cls} px-3 py-1 rounded-lg font-bold`}
+                      >
+                        {item.label}
+                      </a>
+                    ))}
                 </div>
               )}
+
+
 
               <div className="flex items-center gap-3 pt-2">
                 <button 

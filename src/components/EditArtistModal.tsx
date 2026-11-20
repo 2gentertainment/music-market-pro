@@ -23,13 +23,14 @@ export default function EditArtistModal({
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  useEffect(() => {
+    useEffect(() => {
     if (isOpen && artist) {
-      setName(artist.name || '');
+      setName(artist.stage_name || artist.name || '');
       setArtistHandle(artist.artist_handle || (!isLabelOwnerRow ? artist.handle : '') || '');
       setErrorMsg(null);
     }
   }, [isOpen, artist, isLabelOwnerRow]);
+
 
   if (!isOpen || !artist) return null;
 
@@ -56,12 +57,14 @@ export default function EditArtistModal({
     setSaving(true);
     setErrorMsg(null);
 
-    try {
+        try {
       const updatePayload: Record<string, any> = {
         name: trimmedName,
+        stage_name: trimmedName,
         artist_handle: formattedHandle || null,
         updated_at: new Date().toISOString(),
       };
+
 
       // Child roster profiles use `handle` as their storefront/artist slug;
       // for the label owner's own row, preserve `handle` so the label storefront slug stays intact.

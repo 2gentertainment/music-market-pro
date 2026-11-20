@@ -1,11 +1,28 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { supabase as _supabase } from '@/utils/supabase';
 import AudioPlayer from '@/components/AudioPlayer';
 import LabelStorefront from '@/components/LabelStorefront';
 import ImpulsePlayer from '@/components/ImpulsePlayer';
+
+const VALID_TIERS = new Set(['free', 'artist', 'label']);
+
+function normalizeHandle(value?: string | null): string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function expandHandleVariants(handles: Array<string | null | undefined>): string[] {
+  const variants = handles
+    .filter((h): h is string => Boolean(h && h.trim()))
+    .flatMap((h) => {
+      const trimmed = h.trim();
+      return [trimmed, trimmed.toLowerCase()];
+    });
+  return Array.from(new Set(variants));
+}
+
 
 interface Track {
   id: string | number;
@@ -41,53 +58,75 @@ export default function DynamicStorefrontRouter() {
   const params = useParams();
   const searchParams = useSearchParams();
   const dropTrackId = searchParams.get('drop');
+  const forcePlayerView = searchParams.get('view') === 'player';
 
-  // 1. ABSOLUTE TOP-LEVEL INTERCEPT: IF ?drop= IS IN THE URL, RENDER IMPULSE PLAYER IMMEDIATELY
-  if (dropTrackId) {
-    return <ImpulsePlayer trackId={dropTrackId} />;
-  }
 
   const rawSlug = params?.slug;
-  const slugArray = Array.isArray(rawSlug)
-    ? rawSlug
-    : typeof rawSlug === 'string'
-      ? [rawSlug]
-      : [];
+  const slugArray = useMemo(() => {
+    if (Array.isArray(rawSlug)) return rawSlug.map((s) => decodeURIComponent(s).trim());
+    if (typeof rawSlug === 'string') return [decodeURIComponent(rawSlug).trim()];
+    return [];
+  }, [rawSlug]);
 
-  const isWorkspaceNested = slugArray[0] === 'workspace';
+  const isWorkspaceNested = normalizeHandle(slugArray[0]) === 'workspace';
   const primarySlug = slugArray[0] || '';
   const secondarySlug = slugArray[1] || null;
 
-  const targetArtistHandle = isWorkspaceNested
-    ? secondarySlug
-    : primarySlug && primarySlug !== '2g-imprint' && primarySlug !== 'workspace'
-      ? primarySlug
-      : null;
+  const targetArtistHandle = useMemo(() => {
+    if (isWorkspaceNested) return secondarySlug || null;
+    const normPrimary = normalizeHandle(primarySlug);
+    if (normPrimary && normPrimary !== '2g-imprint' && normPrimary !== 'workspace') {
+      return primarySlug;
+    }
+    return null;
+  }, [isWorkspaceNested, primarySlug, secondarySlug]);
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [tracks, setTracks] = useState<Track[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(!dropTrackId);
 
-  useEffect(() => {
+
+    useEffect(() => {
+    if (dropTrackId) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
     async function loadStorefrontData() {
       setLoading(true);
-      try {
+      setTracks([]);
+
+            try {
+        const isDevSuiteEnabled =
+          process.env.NODE_ENV === 'development' &&
+          process.env.NEXT_PUBLIC_ENABLE_DEV_SUITE === 'true';
+
+        const rawDevTier =
+          isDevSuiteEnabled && typeof window !== 'undefined'
+            ? localStorage.getItem('mm_dev_tier')
+            : null;
         const devTier =
-          typeof window !== 'undefined' ? localStorage.getItem('mm_dev_tier') : null;
+          rawDevTier && VALID_TIERS.has(rawDevTier)
+            ? (rawDevTier as Profile['tier'])
+            : null;
 
-        const lookupHandle = targetArtistHandle || primarySlug;
-        let profileData = null;
+        const lookupHandle = (targetArtistHandle || primarySlug).trim();
+        let profileData: Profile | null = null;
 
-        if (lookupHandle && lookupHandle !== 'workspace') {
+        if (lookupHandle && normalizeHandle(lookupHandle) !== 'workspace') {
+          const safeLookup = lookupHandle.replace(/[,()]/g, '');
           const { data } = await _supabase
             .from('profiles')
             .select('*')
-            .or(`handle.eq.${lookupHandle},artist_handle.eq.${lookupHandle}`)
+            .or(`handle.ilike.${safeLookup},artist_handle.ilike.${safeLookup}`)
             .maybeSingle();
-          profileData = data;
+
+          profileData = data as Profile | null;
         }
 
-               if (!profileData && !targetArtistHandle) {
+        if (!profileData && !targetArtistHandle) {
           const { data: labelProfiles } = await _supabase
             .from('profiles')
             .select('*')
@@ -96,10 +135,9 @@ export default function DynamicStorefrontRouter() {
             .limit(1);
 
           if (labelProfiles && labelProfiles.length > 0) {
-            profileData = labelProfiles[0];
+            profileData = labelProfiles[0] as Profile;
           }
         }
-
 
         const activeProfile: Profile = profileData || {
           id: 'test-id',
@@ -108,37 +146,31 @@ export default function DynamicStorefrontRouter() {
           tier: targetArtistHandle ? 'artist' : 'label',
         };
 
-        if (devTier && devTier !== 'logged_out') {
-          activeProfile.tier = devTier as any;
+                if (isDevSuiteEnabled && devTier) {
+          activeProfile.tier = devTier;
         }
 
+
+        if (cancelled) return;
         setProfile(activeProfile);
 
-                let trackQuery = _supabase
-          .from('tracks_pro')
-          .select('*')
-          .eq('is_archived', false)
-          .is('deleted_at', null)
-          .order('track_order', { ascending: true, nullsFirst: false })
-          .order('album_index', { ascending: true, nullsFirst: false });
+                const normTarget = normalizeHandle(targetArtistHandle);
+        const normProfileHandle = normalizeHandle(activeProfile.handle);
+        const normProfileArtistHandle = normalizeHandle(activeProfile.artist_handle);
 
-
-        // 👇 BULLETPROOF STOREFRONT ROUTING & TRACK QUERY
-        const normalizedSlug = String(targetArtistHandle || primarySlug || '')
-          .trim()
-          .toLowerCase();
-        const normalizedProfileHandle = String(activeProfile.handle || '')
-          .trim()
-          .toLowerCase();
-
-        const isViewingIndividualArtist =
-          Boolean(targetArtistHandle) && normalizedSlug !== normalizedProfileHandle;
+        const isExplicitArtistHandleMatch =
+          Boolean(normTarget) &&
+          Boolean(normProfileArtistHandle) &&
+          normTarget === normProfileArtistHandle &&
+          normProfileArtistHandle !== normProfileHandle;
 
         const isLabelView =
-          !isViewingIndividualArtist &&
+          !forcePlayerView &&
+          !isExplicitArtistHandleMatch &&
           (activeProfile.tier === 'label' ||
-            primarySlug === '2g-imprint' ||
-            !targetArtistHandle);
+            (!targetArtistHandle && normalizeHandle(primarySlug) === '2g-imprint'));
+
+        let lookupHandles: string[] = [];
 
         if (isLabelView) {
           const { data: rosterArtists } = await _supabase
@@ -146,49 +178,54 @@ export default function DynamicStorefrontRouter() {
             .select('handle, artist_handle')
             .eq('parent_label_id', activeProfile.id);
 
-          const handles = [
+          lookupHandles = expandHandleVariants([
             activeProfile.handle,
             activeProfile.artist_handle,
             ...(rosterArtists?.flatMap((a) => [a.handle, a.artist_handle]) || []),
-          ].filter(Boolean);
-
-          const rawHandles = handles.flatMap((h) => [
-            h,
-            String(h).toLowerCase(),
-            String(h).trim(),
           ]);
-          const uniqueHandles = Array.from(new Set(rawHandles));
-
-          if (uniqueHandles.length > 0) {
-            trackQuery = trackQuery.in('artist_handle', uniqueHandles);
-          }
-        } else if (targetArtistHandle) {
-          const artistLookupHandles = Array.from(
-            new Set(
-              [targetArtistHandle, activeProfile.handle]
-                .filter(Boolean)
-                .flatMap((h) => [String(h).trim(), String(h).trim().toLowerCase()])
-            )
+        } else {
+          lookupHandles = expandHandleVariants(
+            isExplicitArtistHandleMatch || forcePlayerView
+              ? [targetArtistHandle || activeProfile.artist_handle || activeProfile.handle]
+              : [targetArtistHandle, activeProfile.handle, activeProfile.artist_handle]
           );
-          trackQuery = trackQuery.in('artist_handle', artistLookupHandles);
         }
 
-        const { data: trackData, error: trackError } = await trackQuery;
+
+        if (lookupHandles.length === 0) {
+          if (!cancelled) setTracks([]);
+          return;
+        }
+
+        const { data: trackData, error: trackError } = await _supabase
+          .from('tracks_pro')
+          .select('*')
+          .eq('is_archived', false)
+          .is('deleted_at', null)
+          .in('artist_handle', lookupHandles)
+          .order('track_order', { ascending: true, nullsFirst: false })
+          .order('album_index', { ascending: true, nullsFirst: false });
+
+        if (cancelled) return;
 
         if (trackError) {
           console.error('Error fetching tracks:', trackError);
+          setTracks([]);
+          return;
         }
 
-        if (trackData) {
-          const validV2Tracks = trackData.filter(
-            (t) => t.audio_file_path && !t.audio_file_path.includes('v1-legacy')
-          );
-          setTracks(validV2Tracks);
-        }
+        const validV2Tracks = (trackData || []).filter(
+          (t) => t.audio_file_path && !t.audio_file_path.includes('v1-legacy')
+        );
+        setTracks(validV2Tracks);
       } catch (err) {
-        console.error('Error loading storefront:', err);
+        if (!cancelled) {
+          console.error('Error loading storefront:', err);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
@@ -196,8 +233,17 @@ export default function DynamicStorefrontRouter() {
 
     const handleTierChange = () => loadStorefrontData();
     window.addEventListener('mm_tier_changed', handleTierChange);
-    return () => window.removeEventListener('mm_tier_changed', handleTierChange);
-  }, [primarySlug, secondarySlug, targetArtistHandle]);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('mm_tier_changed', handleTierChange);
+    };
+  }, [dropTrackId, primarySlug, secondarySlug, targetArtistHandle]);
+
+
+    // 1. SAFE POST-HOOK INTERCEPT FOR ?drop= IMPULSE PLAYER
+  if (dropTrackId) {
+    return <ImpulsePlayer trackId={dropTrackId} />;
+  }
 
   if (loading) {
     return (
@@ -207,20 +253,24 @@ export default function DynamicStorefrontRouter() {
     );
   }
 
-  // 2. RENDER LABEL STOREFRONT ONLY WHEN NOT VIEWING A SPECIFIC INDIVIDUAL ARTIST HANDLE
-  const normalizedCurrentSlug = String(targetArtistHandle || primarySlug || '')
-    .trim()
-    .toLowerCase();
-  const normalizedCurrentLabelHandle = String(profile?.handle || '')
-    .trim()
-    .toLowerCase();
-  const isSpecificArtistPlayer =
-    Boolean(targetArtistHandle) && normalizedCurrentSlug !== normalizedCurrentLabelHandle;
+    // 2. RENDER LABEL STOREFRONT FOR LABEL PROFILES OR ROOT LABEL SLUG
+  const normCurrentSlug = normalizeHandle(targetArtistHandle || primarySlug);
+  const normResolvedHandle = normalizeHandle(profile?.handle);
+  const normResolvedArtistHandle = normalizeHandle(profile?.artist_handle);
 
-  if (
-    !isSpecificArtistPlayer &&
-    (profile?.tier === 'label' || (!targetArtistHandle && primarySlug))
-  ) {
+  const isTargetingOwnerArtistHandle =
+    Boolean(normCurrentSlug) &&
+    Boolean(normResolvedArtistHandle) &&
+    normCurrentSlug === normResolvedArtistHandle &&
+    normResolvedArtistHandle !== normResolvedHandle;
+
+  const isLabelStorefront =
+    !forcePlayerView &&
+    !isTargetingOwnerArtistHandle &&
+    (profile?.tier === 'label' ||
+      (!targetArtistHandle && Boolean(primarySlug)));
+
+  if (isLabelStorefront) {
     return (
       <LabelStorefront
         profile={profile}
@@ -230,9 +280,11 @@ export default function DynamicStorefrontRouter() {
     );
   }
 
+
   // 3. RENDER INDIVIDUAL ARTIST AUDIO PLAYER
   const artistHandleToUse = targetArtistHandle || primarySlug;
-  const artistTier = profile?.tier || 'artist';
+  const artistTier = profile?.tier === 'label' ? 'artist' : (profile?.tier || 'artist');
+
 
     return (
     <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center p-2">

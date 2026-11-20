@@ -6,9 +6,15 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export async function POST(request: Request) {
   try {
-    const { name, handle, parent_label_id } = await request.json();
+    const { name, stage_name, handle, parent_label_id } = await request.json();
 
-    if (!name || !handle || !parent_label_id) {
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    const trimmedStageName =
+      typeof stage_name === 'string' && stage_name.trim()
+        ? stage_name.trim()
+        : trimmedName;
+
+    if (!trimmedName || !handle || !parent_label_id) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -21,7 +27,8 @@ export async function POST(request: Request) {
       .from('profiles')
       .insert([
         {
-          name,
+          name: trimmedName,
+          stage_name: trimmedStageName,
           handle,
           tier: 'artist',
           parent_label_id,
@@ -29,6 +36,7 @@ export async function POST(request: Request) {
       ])
       .select()
       .single();
+
 
     if (error) {
       console.error('Database insertion error:', error);

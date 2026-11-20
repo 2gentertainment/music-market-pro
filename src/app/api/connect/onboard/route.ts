@@ -2,9 +2,8 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
 
 export async function POST(req: Request) {
   try {
@@ -127,10 +126,11 @@ export async function POST(req: Request) {
         type: 'express',
         ...(resolvedEmail ? { email: resolvedEmail } : {}),
         business_type: 'individual',
-        business_profile: {
-          url: 'https://2g-ent.com/musicmarket',
+                business_profile: {
+          url: 'https://musicmarket.app',
           product_description: 'Independent music catalog and direct-to-fan sales.',
         },
+
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },

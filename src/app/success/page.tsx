@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function SuccessPage() {
+function SuccessContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
   const artistParam = searchParams.get('artist') || searchParams.get('handle');
-  
+
   const [loading, setLoading] = useState(true);
   const [verified, setVerified] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -33,7 +33,7 @@ export default function SuccessPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-6 font-sans">
       <div className="max-w-md w-full bg-[#121212] border border-[#222] rounded-[16px] p-8 flex flex-col gap-6 text-center shadow-2xl">
-        
+
         {/* Brand Header */}
         <div className="flex flex-col gap-1">
           <span className="text-[10px] uppercase tracking-widest text-[#ff8c00] font-bold">2G Music Market</span>
@@ -74,7 +74,7 @@ export default function SuccessPage() {
         ) : (
           <div className="flex flex-col gap-4">
             <p className="text-[13px] text-[#ff4444]">{errorMsg}</p>
-            <Link 
+            <Link
               href={returnUrl}
               className="w-full bg-[#1e1e1e] border border-[#333] hover:border-[#ff8c00] text-white font-bold text-[12px] py-3 rounded-[10px] transition-all"
             >
@@ -91,5 +91,19 @@ export default function SuccessPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center p-6 font-sans">
+          <div className="text-[#888] text-[13px]">Verifying Order...</div>
+        </div>
+      }
+    >
+      <SuccessContent />
+    </Suspense>
   );
 }

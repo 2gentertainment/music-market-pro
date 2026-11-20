@@ -30,15 +30,17 @@ export default function AddArtistModal({ isOpen, onClose, parentLabelId, onArtis
     try {
       const formattedHandle = handle.toLowerCase().replace(/\s+/g, '-');
 
-      const response = await fetch('/api/artist/add', {
+            const response = await fetch('/api/artist/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: artistName,
+          stage_name: artistName.trim(),
           handle: formattedHandle,
           parent_label_id: parentLabelId,
         }),
       });
+
 
       const result = await response.json();
 

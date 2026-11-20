@@ -41,7 +41,8 @@ export default function AddToAlbumModal({
         setSelectedAlbum((prev) => (prev && existingAlbums.includes(prev) ? prev : existingAlbums[0]));
       }
       setNewAlbumName('');
-      setSelectedAlbumArtist(rosterArtists?.[0]?.handle || rosterArtists?.[0]?.artist_handle || '');
+           setSelectedAlbumArtist(rosterArtists?.[0]?.artist_handle || rosterArtists?.[0]?.handle || '');
+
     }
   }, [isOpen, existingAlbums, rosterArtists]);
 
@@ -198,8 +199,8 @@ export default function AddToAlbumModal({
               onChange={(e) => setSelectedAlbumArtist(e.target.value)}
               className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3 py-2.5 text-xs text-white outline-none cursor-pointer"
             >
-              {rosterArtists.map((artist) => {
-                const handleToUse = artist.handle || artist.artist_handle;
+                            {rosterArtists.map((artist) => {
+                const handleToUse = artist.artist_handle || artist.handle;
                 const displayName = artist.name || handleToUse;
                 return (
                   <option key={artist.id || handleToUse} value={handleToUse}>
@@ -207,6 +208,7 @@ export default function AddToAlbumModal({
                   </option>
                 );
               })}
+
             </select>
           </div>
         )}

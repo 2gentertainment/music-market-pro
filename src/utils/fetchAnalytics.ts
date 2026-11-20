@@ -10,8 +10,10 @@ export interface TrackBreakdownMetric {
 export async function getAnalyticsData(
   timeframe: 'today' | '7d' | '30d' | 'all',
   artistHandle?: string,
-  isSuperAdmin: boolean = false
+  isSuperAdmin: boolean = false,
+  rosterHandles?: string[]
 ) {
+
   const now = new Date();
   let startDate = new Date(0); // Epoch for 'all'
 
@@ -25,31 +27,37 @@ export async function getAnalyticsData(
 
   const isoStart = startDate.toISOString();
 
-    // 1. Fetch Earnings (includes track_id for per-track revenue breakdown)
-  let earningsQuery = supabase
-    .from('artist_earnings')
-    .select('id, track_id, net_amount, gross_amount, platform_fee, platform_commission, created_at, artist_handle')
-    .gte('created_at', isoStart)
-    .order('created_at', { ascending: false });
-
-
-  if (artistHandle) {
-    earningsQuery = earningsQuery.eq('artist_handle', artistHandle.toLowerCase());
-  }
-
-  const { data: earningsData } = await earningsQuery;
-
-  // 2. Fetch Telemetry Events (Plays & Stream Click-Throughs)
-  let telemetryQuery = supabase
-    .from('analytics_events_v2')
-    .select('event_type, track_id, artist_handle, visitor_id, metadata, created_at')
-    .gte('created_at', isoStart);
-
-  if (artistHandle) {
-    telemetryQuery = telemetryQuery.eq('artist_handle', artistHandle.toLowerCase());
-  }
-
-  const { data: telemetryData } = await telemetryQuery;
+    const cleanHandle = artistHandle?.trim().toLowerCase() || '';
+const cleanRosterHandles = Array.from(
+new Set(
+(rosterHandles || [])
+.flatMap((h) => [String(h || '').trim(), String(h || '').trim().toLowerCase()])
+.filter(Boolean)
+)
+);
+// 1. Fetch Earnings (includes track_id for per-track revenue breakdown)
+let earningsQuery = supabase
+.from('artist_earnings')
+.select('id, track_id, net_amount, gross_amount, platform_fee, platform_commission, created_at, artist_handle')
+.gte('created_at', isoStart)
+.order('created_at', { ascending: false });
+if (cleanHandle) {
+earningsQuery = earningsQuery.ilike('artist_handle', cleanHandle);
+} else if (!isSuperAdmin && cleanRosterHandles.length > 0) {
+earningsQuery = earningsQuery.in('artist_handle', cleanRosterHandles);
+}
+const { data: earningsData } = await earningsQuery;
+// 2. Fetch Telemetry Events (Plays & Stream Click-Throughs)
+let telemetryQuery = supabase
+.from('analytics_events_v2')
+.select('event_type, track_id, artist_handle, visitor_id, metadata, created_at')
+.gte('created_at', isoStart);
+if (cleanHandle) {
+telemetryQuery = telemetryQuery.ilike('artist_handle', cleanHandle);
+} else if (!isSuperAdmin && cleanRosterHandles.length > 0) {
+telemetryQuery = telemetryQuery.in('artist_handle', cleanRosterHandles);
+}
+const { data: telemetryData } = await telemetryQuery;
 
   let totalGross = 0;
   let totalNet = 0;

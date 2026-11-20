@@ -3,9 +3,8 @@ import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { syncCreatorToAweber } from "@/lib/aweber";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2023-10-16" as any,
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -197,7 +196,7 @@ export async function POST(req: Request) {
         const trackId = session.metadata?.trackId;
         const artistHandle = session.metadata?.artistHandle || session.metadata?.handle;
         const customerEmail = session.customer_email || session.customer_details?.email;
-        const customerName = session.customer_details?.name || session.customer_name;
+        const customerName = session.customer_details?.name || null;
 
         const totalCents = session.amount_total || 0;
         const grossAmount = totalCents / 100;

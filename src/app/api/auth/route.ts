@@ -7,9 +7,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-10-16' as any,
 });
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://chhwujiajdhaihupvuix.supabase.co';
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_bHflg5jJHZfPzoOdsC5f_Q_H3YO4v3c';
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
 
 if (!SUPABASE_SERVICE_ROLE_KEY) {
   console.warn('Warning: SUPABASE_SERVICE_ROLE_KEY is missing in app/api/auth/route.ts');
@@ -27,9 +28,10 @@ const supabaseAdmin = createClient(
 );
 
 export async function POST(request: Request) {
-  try {
+    try {
     const body = await request.json();
-    const { action, email, password, name, phone, handle, agreedToTerms } = body;
+    const { action, email, password, name, phone, handle, stageName, agreedToTerms } = body;
+
 
     if (action === 'signup') {
       if (!SUPABASE_SERVICE_ROLE_KEY) {
@@ -67,8 +69,12 @@ export async function POST(request: Request) {
       }
 
 
-      const emailHandle = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+            const emailHandle = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
       const uniqueHandle = handle ? handle.toLowerCase().replace(/[^a-z0-9]/g, '-') : `${emailHandle}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const resolvedStageName =
+        (typeof stageName === 'string' && stageName.trim()) ||
+        (typeof handle === 'string' && handle.trim()) ||
+        null;
       const rawUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
       const appUrl = rawUrl.trim().replace(/\/+$/, '');
       const artistProfileUrl = `${appUrl}/artist/${uniqueHandle}`;
@@ -80,6 +86,7 @@ export async function POST(request: Request) {
           email: email,
           handle: uniqueHandle,
           artist_handle: uniqueHandle, // 👈 Ensures individual artist player slug is saved immediately on sign-up
+          stage_name: resolvedStageName,
           name: name || emailHandle,
           full_name: name || emailHandle,
           full_legal_name: name || emailHandle,
@@ -89,6 +96,7 @@ export async function POST(request: Request) {
           terms_accepted_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
+
 
         if (dbError) {
           console.error('Database profile provision error on auth signup:', dbError);
@@ -113,10 +121,11 @@ export async function POST(request: Request) {
         email: email,
         country: 'US',
         business_type: 'individual',
-        business_profile: {
-          url: 'https://2g-ent.com',
+                business_profile: {
+          url: 'https://musicmarket.app',
           product_description: 'Independent music catalog sales and digital downloads.',
         },
+
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },

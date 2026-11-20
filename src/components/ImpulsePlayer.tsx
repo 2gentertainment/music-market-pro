@@ -123,13 +123,62 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
     }
   }, [trackId]);
 
+    function getVisitorId(): string {
+    if (typeof window === 'undefined') return 'server';
+    let vid = localStorage.getItem('mm_visitor_id');
+    if (!vid) {
+      vid = `v_${Math.random().toString(36).slice(2, 10)}_${Date.now()}`;
+      localStorage.setItem('mm_visitor_id', vid);
+    }
+    return vid;
+  }
+
+  async function logImpulseEvent(
+    eventType: 'play' | 'outbound_stream',
+    extraMetadata: Record<string, any> = {}
+  ) {
+    if (!track?.id) return;
+    const ownerHandle = (resolvedArtistHandle || track.artist_handle || '').trim().toLowerCase();
+    if (!ownerHandle) return;
+
+    try {
+      await _supabase.from('analytics_events_v2').insert({
+        event_type: eventType,
+        track_id: String(track.id),
+        artist_handle: ownerHandle,
+        visitor_id: getVisitorId(),
+        metadata: {
+          track_title: track.title || null,
+          album_name: track.album_name || null,
+          source: 'impulse_player',
+          ...extraMetadata,
+        },
+      });
+    } catch (err) {
+      console.error(`Failed to log ${eventType} event on ImpulsePlayer:`, err);
+    }
+  }
+
   const togglePlay = () => {
     if (!audioRef.current || !track?.audio_file_path) return;
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      audioRef.current.play();
+      const playPromise = audioRef.current.play();
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise
+          .then(() => {
+            logImpulseEvent('play');
+          })
+          .catch((err) => {
+            if (err?.name !== 'AbortError') {
+              console.error('Impulse audio playback error:', err);
+            }
+          });
+      } else {
+        logImpulseEvent('play');
+      }
       setIsPlaying(true);
     }
   };
@@ -285,38 +334,30 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
             <span className="text-[10px] text-neutral-400 uppercase tracking-widest font-extrabold block text-center">
               Stream On Platforms
             </span>
-            <div className="grid grid-cols-2 gap-2">
-              {track.spotify_url && (
-                <a href={track.spotify_url} target="_blank" rel="noreferrer" className="relative overflow-hidden p-2.5 rounded-xl bg-neutral-950 border border-[#ff8c00]/60 hover:border-[#ff8c00] text-neutral-100 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(255,140,0,0.18)] group">
-                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-[#ff8c00]/25 to-transparent -translate-x-full group-hover:animate-shine" />
-                  Spotify
-                </a>
-              )}
-              {track.apple_music_url && (
-                <a href={track.apple_music_url} target="_blank" rel="noreferrer" className="relative overflow-hidden p-2.5 rounded-xl bg-neutral-950 border border-[#ff8c00]/60 hover:border-[#ff8c00] text-neutral-100 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(255,140,0,0.18)] group">
-                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-[#ff8c00]/25 to-transparent -translate-x-full group-hover:animate-shine" />
-                  Apple Music
-                </a>
-              )}
-              {track.tidal_url && (
-                <a href={track.tidal_url} target="_blank" rel="noreferrer" className="relative overflow-hidden p-2.5 rounded-xl bg-neutral-950 border border-[#ff8c00]/60 hover:border-[#ff8c00] text-neutral-100 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(255,140,0,0.18)] group">
-                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-[#ff8c00]/25 to-transparent -translate-x-full group-hover:animate-shine" />
-                  Tidal
-                </a>
-              )}
-              {track.youtube_url && (
-                <a href={track.youtube_url} target="_blank" rel="noreferrer" className="relative overflow-hidden p-2.5 rounded-xl bg-neutral-950 border border-[#ff8c00]/60 hover:border-[#ff8c00] text-neutral-100 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(255,140,0,0.18)] group">
-                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-[#ff8c00]/25 to-transparent -translate-x-full group-hover:animate-shine" />
-                  YouTube
-                </a>
-              )}
-              {track.pandora_url && (
-                <a href={track.pandora_url} target="_blank" rel="noreferrer" className="relative overflow-hidden p-2.5 rounded-xl bg-neutral-950 border border-[#ff8c00]/60 hover:border-[#ff8c00] text-neutral-100 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(255,140,0,0.18)] group">
-                  <span className="absolute inset-0 bg-gradient-to-r from-transparent via-[#ff8c00]/25 to-transparent -translate-x-full group-hover:animate-shine" />
-                  Pandora
-                </a>
-              )}
+                        <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: 'Spotify', url: track.spotify_url },
+                { label: 'Apple Music', url: track.apple_music_url },
+                { label: 'Tidal', url: track.tidal_url },
+                { label: 'YouTube', url: track.youtube_url },
+                { label: 'Pandora', url: track.pandora_url },
+              ]
+                .filter((item) => Boolean(item.url?.trim()))
+                .map((item) => (
+                  <a
+                    key={item.label}
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => logImpulseEvent('outbound_stream', { platform: item.label })}
+                    className="relative overflow-hidden p-2.5 rounded-xl bg-neutral-950 border border-[#ff8c00]/60 hover:border-[#ff8c00] text-neutral-100 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(255,140,0,0.18)] group"
+                  >
+                    <span className="absolute inset-0 bg-gradient-to-r from-transparent via-[#ff8c00]/25 to-transparent -translate-x-full group-hover:animate-shine" />
+                    {item.label}
+                  </a>
+                ))}
             </div>
+
           </div>
         )}
 

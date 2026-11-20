@@ -2,9 +2,8 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16' as any,
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -46,20 +45,18 @@ export async function POST(req: Request) {
 
         if (tokenFetchError || !tokenRecord) {
           console.error('AWeber buyer sync skipped—no integration_tokens row:', tokenFetchError);
-        } else {
+              } else {
           let accessToken = tokenRecord.access_token;
           let refreshToken = tokenRecord.refresh_token;
 
           const accountId = process.env.AWEBER_ACCOUNT_ID;
-          const rawCustomerListId = process.env.AWEBER_CUSTOMER_LIST_ID || '6985219';
+          const rawCustomerListId = process.env.AWEBER_CUSTOMER_LIST_ID || 'awlist6985219';
           const listId = rawCustomerListId.replace(/^awlist/i, '');
+          const normalizedBuyerEmail = String(buyerEmail).trim().toLowerCase();
 
-
-
-          // Build rich tags based on what they are buying and who the artist is
           const primaryItem = items[0] || {};
           const artistHandle = primaryItem.artistHandle || primaryItem.handle;
-          
+
           const tags = ['2g-music-market', 'buyer'];
           if (artistHandle) tags.push(`artist-${artistHandle.toLowerCase()}`);
           if (primaryItem.itemType === 'album' && primaryItem.albumName) {
@@ -69,35 +66,37 @@ export async function POST(req: Request) {
           }
 
           const subscriberPayload = {
-            email: buyerEmail,
+            email: normalizedBuyerEmail,
             name: 'Music Market Buyer',
-            tags: tags,
+            tags,
             update_existing: true,
           };
 
           const aweberUrl = `https://api.aweber.com/1.0/accounts/${accountId}/lists/${listId}/subscribers`;
 
-          // 2. Attempt AWeber request
-let aweberRes = await fetch(aweberUrl, {
-method: 'POST',
+          let aweberRes = await fetch(aweberUrl, {
+            method: 'POST',
             headers: {
-              'Authorization': `Bearer ${accessToken}`,
+              Authorization: `Bearer ${accessToken}`,
               'Content-Type': 'application/json',
-              'Accept': 'application/json',
+              Accept: 'application/json',
             },
+            body: JSON.stringify(subscriberPayload),
+          });
 
-body: JSON.stringify(subscriberPayload),
-});
-
-          // 3. Handle 401 token expiration and auto-rotation
           if (aweberRes.status === 401) {
+            const clientId = process.env.AWEBER_CLIENT_ID;
+            const clientSecret = process.env.AWEBER_CLIENT_SECRET;
+            const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
             const refreshRes = await fetch('https://auth.aweber.com/oauth2/token', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                Authorization: `Basic ${basicAuth}`,
+              },
               body: new URLSearchParams({
                 grant_type: 'refresh_token',
-                client_id: process.env.AWEBER_CLIENT_ID || 'moj5CVeEMIYMAqtk0ZWeDMIdj7UAE2A1',
-                client_secret: process.env.AWEBER_CLIENT_SECRET || 'zOgLeuFRyW7G2nrtS5beMSPIb9AZNovF',
                 refresh_token: refreshToken,
               }),
             });
@@ -105,9 +104,8 @@ body: JSON.stringify(subscriberPayload),
             if (refreshRes.ok) {
               const refreshData = await refreshRes.json();
               accessToken = refreshData.access_token;
-              refreshToken = refreshData.refresh_token;
+              refreshToken = refreshData.refresh_token || refreshToken;
 
-              // Instantly save new rotated tokens back to Supabase
               await supabase
                 .from('integration_tokens')
                 .update({
@@ -117,19 +115,24 @@ body: JSON.stringify(subscriberPayload),
                 })
                 .eq('provider', 'aweber');
 
-              // Retry subscriber request with the fresh token
-              await fetch(aweberUrl, {
+              aweberRes = await fetch(aweberUrl, {
                 method: 'POST',
                 headers: {
-                  'Authorization': `Bearer ${accessToken}`,
+                  Authorization: `Bearer ${accessToken}`,
                   'Content-Type': 'application/json',
-                  'Accept': 'application/json',
+                  Accept: 'application/json',
                 },
                 body: JSON.stringify(subscriberPayload),
               });
             }
           }
+
+          if (!aweberRes.ok && aweberRes.status !== 201) {
+            const errBody = await aweberRes.text().catch(() => '');
+            console.error(`AWeber customer list (${listId}) sync failed (${aweberRes.status}):`, errBody);
+          }
         }
+
       } catch (aweberErr) {
         console.error('AWeber buyer sync error:', aweberErr);
       }
@@ -143,18 +146,19 @@ body: JSON.stringify(subscriberPayload),
         let connectedStripeAccountId: string | null = null;
     let commissionRate = TIER_COMMISSION_RATES.free; // Default to 15% free tier if unmapped
 
-      if (artistHandle) {
+          if (artistHandle) {
       const { data: artistProfile } = await supabase
         .from('profiles')
-        .select('tier, stripe_account_id, stripeAccountId')
+        .select('tier, stripe_account_id')
         .or(`handle.eq.${artistHandle},artist_handle.eq.${artistHandle}`)
         .maybeSingle();
 
       if (artistProfile) {
-        connectedStripeAccountId = artistProfile.stripe_account_id || artistProfile.stripeAccountId || null;
+        connectedStripeAccountId = artistProfile.stripe_account_id || null;
         commissionRate = getTierCommissionRate(artistProfile.tier);
       }
     }
+
 
 
 
@@ -194,9 +198,9 @@ body: JSON.stringify(subscriberPayload),
     });
 
         // Configure checkout session options
-    const sessionConfig: Stripe.Checkout.SessionCreateParams = {
-      payment_method_types: ['card'],
+        const sessionConfig: Stripe.Checkout.SessionCreateParams = {
       mode: 'payment',
+
       customer_email: buyerEmail || undefined,
       allow_promotion_codes: true,
       line_items: lineItems,

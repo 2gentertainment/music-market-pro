@@ -37,15 +37,18 @@ export default function AuthPage() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth', {
+               const response = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: isLoginState ? 'login' : 'signup',
           ...formData,
+          stageName: !isLoginState ? formData.handle.trim() : undefined,
           agreedToTerms: !isLoginState ? agreedToTerms : true
         }),
       });
+
+
 
       const result = await response.json();
 
@@ -56,16 +59,20 @@ export default function AuthPage() {
           return;
         }
 
-        // 2. LOGIN PATH: Handle session storage and route to the dashboard
+               // 2. LOGIN PATH: Handle session storage and route to the dashboard
         if (result.session) {
-          await supabase.auth.setSession(result.session);
+          const { error: sessionErr } = await supabase.auth.setSession({
+            access_token: result.session.access_token,
+            refresh_token: result.session.refresh_token,
+          });
+          if (sessionErr) {
+            setErrorMsg(sessionErr.message || 'Failed to establish session.');
+            return;
+          }
         }
         
-        if (result.redirectTo) {
-          router.push(result.redirectTo);
-        } else {
-          router.push('/dashboard');
-        }
+        router.replace(result.redirectTo || '/dashboard');
+
       } else {
         setErrorMsg(result.message || 'Authentication failed');
       }

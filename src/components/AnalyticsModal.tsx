@@ -102,22 +102,40 @@ export default function AnalyticsModal({
     return now.toISOString();
   }
 
+    useEffect(() => {
+    if (isOpen) {
+      setSelectedRosterFilter('all');
+      setSelectedGenreFilter('all');
+    }
+  }, [isOpen, artistHandle]);
+
   useEffect(() => {
     if (!isOpen) return;
 
     async function loadData() {
       setLoading(true);
 
-      // Determine handle scope: undefined pulls global or roster data depending on filter selection
-      const effectiveHandle = hasElevatedView
+      // Determine handle scope: normalized single-account handle when not in global/roster master view
+      const rawHandle = hasElevatedView
         ? (selectedRosterFilter === 'all' || selectedRosterFilter === 'roster_all' ? undefined : selectedRosterFilter)
         : artistHandle;
+      const effectiveHandle = rawHandle ? String(rawHandle).trim().toLowerCase() : undefined;
+
 
       // Only query global ecosystem data if super admin is viewing the global 'all' option
       const querySuperAdmin = isSuperAdmin && selectedRosterFilter === 'all';
 
+               const normalizedArtistHandle = String(artistHandle || '').trim().toLowerCase();
+      const normalizedRosterHandles = Array.from(
+        new Set(
+          (rosterArtists || [])
+            .map((a) => String(a?.artist_handle || a?.handle || '').trim().toLowerCase())
+            .filter(Boolean)
+        )
+      );
+
       // Fetch Macro & Super-Admin Telemetry
-      const data = await getAnalyticsData(timeframe, effectiveHandle, querySuperAdmin);
+      const data = await getAnalyticsData(timeframe, effectiveHandle, querySuperAdmin, normalizedRosterHandles);
       setMetrics({
         totalGross: data.totalGross,
         totalNet: data.totalNet,
@@ -131,14 +149,6 @@ export default function AnalyticsModal({
         topArtistsLeaderboard: data.topArtistsLeaderboard || [],
       });
 
-               const normalizedArtistHandle = String(artistHandle || '').trim().toLowerCase();
-      const normalizedRosterHandles = Array.from(
-        new Set(
-          (rosterArtists || [])
-            .map((a) => String(a?.artist_handle || a?.handle || '').trim().toLowerCase())
-            .filter(Boolean)
-        )
-      );
 
 
       // Fetch Track-Level Performance Breakdown (exclude soft-deleted tracks)
@@ -626,12 +636,16 @@ export default function AnalyticsModal({
                 </div>
               ) : (
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                  {trackStats.map((track) => {
-                    const stats = metrics.trackBreakdown[String(track.id || '').toLowerCase()] || {
-                      plays: 0,
-                      clickThroughs: 0,
-                      revenue: 0,
-                    };
+                                    {trackStats.map((track) => {
+                    const rawId = String(track.id || '');
+                    const stats =
+                      metrics.trackBreakdown[rawId] ||
+                      metrics.trackBreakdown[rawId.toLowerCase()] || {
+                        plays: 0,
+                        clickThroughs: 0,
+                        revenue: 0,
+                      };
+
 
                     return (
                       <div key={track.id} className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl flex items-center justify-between gap-4">

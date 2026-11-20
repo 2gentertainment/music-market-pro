@@ -2,23 +2,18 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://chhwujiajdhaihupvuix.supabase.co',
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Optional: map a promo code string to a Stripe Coupon ID in env/config
-const VALID_FIRST_MONTH_COUPONS: Record<string, string | undefined> = {
-  FIRSTMONTH: process.env.STRIPE_FIRST_MONTH_COUPON_ID,
-};
 
 export async function POST(req: Request) {
   try {
-    const { tier, accountId, handle, profileId, couponCode } = await req.json();
+    const { tier, accountId, handle, profileId } = await req.json();
+
 
     if (!tier) {
       return NextResponse.json({ error: 'Tier selection is required' }, { status: 400 });
@@ -56,38 +51,15 @@ export async function POST(req: Request) {
       profile = data;
     }
 
-    const normalizedCode = typeof couponCode === 'string' ? couponCode.trim().toUpperCase() : '';
-    const alreadyUsedCoupon = Boolean(profile?.first_month_coupon_used);
-
-    if (normalizedCode && alreadyUsedCoupon) {
-      return NextResponse.json(
-        { error: 'Your account has already used its one-time first-month coupon.' },
-        { status: 400 }
-      );
-    }
-
-    let discounts: Stripe.Checkout.SessionCreateParams.Discount[] | undefined;
-    let appliedCouponCode = '';
-
-    if (normalizedCode && !alreadyUsedCoupon) {
-      const stripeCouponId = VALID_FIRST_MONTH_COUPONS[normalizedCode];
-      if (!stripeCouponId) {
-        return NextResponse.json(
-          { error: 'Invalid or expired first-month coupon code.' },
-          { status: 400 }
-        );
-      }
-      discounts = [{ coupon: stripeCouponId }];
-      appliedCouponCode = normalizedCode;
-    }
+      const alreadyUsedCoupon = Boolean(profile?.first_month_coupon_used);
 
     // PAID TIERS (Artist or Label Upgrades/Cross-grades via Stripe)
     const priceAmount = tier === 'label' ? 2999 : 999;
     const tierTitle = tier === 'label' ? 'Label Executive Tier' : 'Independent Artist Tier';
 
-    const sessionParams: Stripe.Checkout.SessionCreateParams = {
-      payment_method_types: ['card'],
+        const sessionParams: Stripe.Checkout.SessionCreateParams = {
       line_items: [
+
         {
           price_data: {
             currency: 'usd',
@@ -103,24 +75,27 @@ export async function POST(req: Request) {
           quantity: 1,
         },
       ],
-      mode: 'subscription',
+            mode: 'subscription',
+      allow_promotion_codes: !alreadyUsedCoupon,
+      subscription_data: {
+        metadata: {
+          profileId: profile?.id || profileId || '',
+          tier,
+          stripeAccountId: accountId || '',
+          customHandle: handle || '',
+        },
+      },
       success_url: `${appUrl}/dashboard?success=true&tier=${tier}`,
+
       cancel_url: `${appUrl}/upgrade`,
       metadata: {
         profileId: profile?.id || profileId || '',
         tierUpgrade: tier,
         stripeAccountId: accountId || '',
         customHandle: handle || '',
-        firstMonthCouponCode: appliedCouponCode,
       },
     };
 
-    // Stripe Checkout does not allow both `discounts` and `allow_promotion_codes` at once
-    if (discounts) {
-      sessionParams.discounts = discounts;
-    } else if (!alreadyUsedCoupon) {
-      sessionParams.allow_promotion_codes = true;
-    }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
 

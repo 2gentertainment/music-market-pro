@@ -24,17 +24,25 @@ const platformColors: Record<string, string> = {
 export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free' }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
 
+    const isDevSuiteEnabled =
+    process.env.NODE_ENV === 'development' &&
+    process.env.NEXT_PUBLIC_ENABLE_DEV_SUITE === 'true';
+
   const [currentTier, setCurrentTier] = useState<string>(tier);
 
   useEffect(() => {
     const checkDevTier = () => {
-      const devTier = typeof window !== 'undefined' ? localStorage.getItem('mm_dev_tier') : null;
-      if (devTier && devTier !== 'logged_out') {
+      const devTier =
+        isDevSuiteEnabled && typeof window !== 'undefined'
+          ? localStorage.getItem('mm_dev_tier')
+          : null;
+      if (isDevSuiteEnabled && devTier && devTier !== 'logged_out') {
         setCurrentTier(devTier);
       } else {
         setCurrentTier(tier);
       }
     };
+
 
     checkDevTier();
 
@@ -72,7 +80,39 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
   const [buyModalOpen, setBuyModalOpen] = useState(false);
   const [trackToBuy, setTrackToBuy] = useState<any>(null);
 
-  const currentTrack = activePlaylist[currentIndex] || null;
+    const currentTrack = activePlaylist[currentIndex] || null;
+  const isPlayingRef = useRef<boolean>(false);
+  const currentTrackRef = useRef<any>(null);
+  const currentIndexRef = useRef<number>(0);
+  const activePlaylistRef = useRef<any[]>([]);
+  const isShuffledRef = useRef<boolean>(false);
+  const isRepeatedRef = useRef<boolean>(false);
+  const shufflePoolRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    currentTrackRef.current = currentTrack;
+    currentIndexRef.current = currentIndex;
+  }, [currentTrack, currentIndex]);
+
+  useEffect(() => {
+    activePlaylistRef.current = activePlaylist;
+  }, [activePlaylist]);
+
+  useEffect(() => {
+    isShuffledRef.current = isShuffled;
+  }, [isShuffled]);
+
+  useEffect(() => {
+    isRepeatedRef.current = isRepeated;
+  }, [isRepeated]);
+
+  useEffect(() => {
+    shufflePoolRef.current = shufflePool;
+  }, [shufflePool]);
 
   useEffect(() => {
     if (initialTracks && initialTracks.length > 0) {
@@ -81,6 +121,25 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
       initPlayer();
     }
   }, [artistHandle, initialTracks]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && audioRef.current) {
+        if (isPlayingRef.current && audioRef.current.paused && currentTrackRef.current?.audio_file_path) {
+          if (audioRef.current.readyState === 0) {
+            audioRef.current.load();
+          }
+          safePlay();
+        } else if (!isPlayingRef.current && !audioRef.current.paused) {
+          setIsPlaying(true);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
 
   useEffect(() => {
     if (!currentTrack) {
@@ -118,7 +177,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     }
   }, [isShuffled, activePlaylist]);
 
-  function resetShufflePool(currentIdx: number, totalTracks: number) {
+    function buildShuffledPool(currentIdx: number, totalTracks: number): number[] {
     const pool: number[] = [];
     for (let i = 0; i < totalTracks; i++) {
       if (i !== currentIdx) {
@@ -129,20 +188,47 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
+    return pool;
+  }
+
+  function resetShufflePool(currentIdx: number, totalTracks: number) {
+    const pool = buildShuffledPool(currentIdx, totalTracks);
+    shufflePoolRef.current = pool;
     setShufflePool(pool);
   }
 
-  function safePlay() {
-    if (!audioRef.current) return;
-    const playPromise = audioRef.current.play();
+  function safePlay(autoPlayAfterLoad = false) {
+    const el = audioRef.current;
+    if (!el) return;
+
+    if (autoPlayAfterLoad && currentTrackRef.current?.audio_file_path) {
+      const targetSrc = currentTrackRef.current.audio_file_path;
+      if (el.src !== targetSrc) {
+        el.src = targetSrc;
+      }
+      if (el.readyState === 0) {
+        el.load();
+      }
+    }
+
+    const playPromise = el.play();
     if (playPromise !== undefined) {
-      playPromise.catch((err) => {
-        if (err.name !== 'AbortError') {
+      playPromise
+        .then(() => {
+          setIsPlaying(true);
+        })
+        .catch((err) => {
+          if (err?.name === 'AbortError') return;
           console.error('Audio playback error:', err);
-        }
-      });
+          if (document.visibilityState === 'hidden') {
+            setIsPlaying(true);
+          } else {
+            setIsPlaying(false);
+          }
+        });
     }
   }
+
 
   function processTracks(data: any[]) {
     const formattedTracks = data.map(track => {
@@ -211,38 +297,46 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
     const { data, error } = await query;
 
-    if (!error && data) {
+       if (!error && data) {
       processTracks(data);
     }
   }
 
-
-
-  function loadTrack(track: any, index: number) {
+  function loadTrack(track: any, index: number, shouldPlay = false) {
     if (!track) return;
+    currentTrackRef.current = track;
+    currentIndexRef.current = index;
     setCurrentIndex(index);
+    setCurrentTime(0);
+    setDuration(0);
     setSubscribeBoxOpen(false);
+
     if (audioRef.current && track?.audio_file_path) {
+      audioRef.current.pause();
       audioRef.current.src = track.audio_file_path;
       audioRef.current.load();
+      if (shouldPlay) {
+        safePlay(true);
+      }
     }
   }
 
   function togglePlay() {
-    if (!audioRef.current || !currentTrack?.audio_file_path) return;
-    if (isPlaying) {
+    if (!audioRef.current || !currentTrackRef.current?.audio_file_path) return;
+    if (isPlayingRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      safePlay();
-      setIsPlaying(true);
+      safePlay(true);
     }
   }
 
   function handleTimeUpdate() {
     if (audioRef.current) {
       setCurrentTime(audioRef.current.currentTime);
-      setDuration(audioRef.current.duration || 0);
+      if (!isNaN(audioRef.current.duration) && isFinite(audioRef.current.duration)) {
+        setDuration(audioRef.current.duration);
+      }
     }
   }
 
@@ -254,33 +348,38 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     }
   }
 
-  function nextTrack() {
-    if (activePlaylist.length === 0) return;
+  function nextTrack(shouldPlay?: boolean) {
+    const playlist = activePlaylistRef.current;
+    if (playlist.length === 0) return;
 
+    const idxNow = currentIndexRef.current;
+    const playAfter = typeof shouldPlay === 'boolean' ? shouldPlay : isPlayingRef.current;
     let nextIdx: number;
 
-    if (isShuffled) {
-      let currentPool = [...shufflePool];
+    if (isShuffledRef.current) {
+      let currentPool = [...shufflePoolRef.current];
       if (currentPool.length === 0) {
-        resetShufflePool(currentIndex, activePlaylist.length);
-        currentPool = [...shufflePool];
+        currentPool = buildShuffledPool(idxNow, playlist.length);
       }
       const popped = currentPool.pop();
-      nextIdx = popped !== undefined ? popped : (currentIndex + 1) % activePlaylist.length;
+      nextIdx = popped !== undefined ? popped : (idxNow + 1) % playlist.length;
+      shufflePoolRef.current = currentPool;
       setShufflePool(currentPool);
     } else {
-      nextIdx = (currentIndex + 1) % activePlaylist.length;
+      nextIdx = (idxNow + 1) % playlist.length;
     }
 
-    loadTrack(activePlaylist[nextIdx], nextIdx);
-    if (isPlaying) safePlay();
+    loadTrack(playlist[nextIdx], nextIdx, playAfter);
   }
 
-  function prevTrack() {
-    if (activePlaylist.length === 0) return;
-    const prevIdx = (currentIndex - 1 + activePlaylist.length) % activePlaylist.length;
-    loadTrack(activePlaylist[prevIdx], prevIdx);
-    if (isPlaying) safePlay();
+  function prevTrack(shouldPlay?: boolean) {
+    const playlist = activePlaylistRef.current;
+    if (playlist.length === 0) return;
+
+    const idxNow = currentIndexRef.current;
+    const playAfter = typeof shouldPlay === 'boolean' ? shouldPlay : isPlayingRef.current;
+    const prevIdx = (idxNow - 1 + playlist.length) % playlist.length;
+    loadTrack(playlist[prevIdx], prevIdx, playAfter);
   }
 
   const lastBackClickRef = useRef<number>(0);
@@ -296,7 +395,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     } else {
       if (audioRef.current && audioRef.current.currentTime > 3) {
         audioRef.current.currentTime = 0;
-        if (isPlaying) safePlay();
+        if (isPlayingRef.current) safePlay();
       } else {
         prevTrack();
       }
@@ -305,13 +404,67 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
   }
 
   function handleTrackEnded() {
-    if (isRepeated && audioRef.current) {
+    if (isRepeatedRef.current && audioRef.current) {
       audioRef.current.currentTime = 0;
       safePlay();
     } else {
-      nextTrack();
+      nextTrack(true);
     }
   }
+
+    function getVisitorId(): string {
+    if (typeof window === 'undefined') return 'server';
+    let vid = localStorage.getItem('mm_visitor_id');
+    if (!vid) {
+      vid = `v_${Math.random().toString(36).slice(2, 10)}_${Date.now()}`;
+      localStorage.setItem('mm_visitor_id', vid);
+    }
+    return vid;
+  }
+
+  async function logAnalyticsEvent(
+    eventType: 'play' | 'outbound_stream',
+    track: any,
+    extraMetadata: Record<string, any> = {}
+  ) {
+    if (!track?.id) return;
+    const resolvedHandle = (track.artist_handle || artistHandle || '').trim().toLowerCase();
+    if (!resolvedHandle) return;
+
+    try {
+      await _supabase.from('analytics_events_v2').insert({
+        event_type: eventType,
+        track_id: String(track.id),
+        artist_handle: resolvedHandle,
+        visitor_id: getVisitorId(),
+        metadata: {
+          track_title: track.title || null,
+          album_name: track.album_name || null,
+          ...extraMetadata,
+        },
+      });
+    } catch (err) {
+      console.error(`Failed to log ${eventType} analytics event:`, err);
+    }
+  }
+
+  function handleAudioError() {
+    const el = audioRef.current;
+    if (!el || !currentTrackRef.current?.audio_file_path) return;
+
+    if (el.src !== currentTrackRef.current.audio_file_path) {
+      el.src = currentTrackRef.current.audio_file_path;
+      el.load();
+      if (isPlayingRef.current) {
+        safePlay(true);
+      }
+    } else if (document.visibilityState === 'visible' && isPlayingRef.current) {
+      setIsPlaying(false);
+    }
+  }
+
+
+
 
   function formatTime(secs: number) {
     if (isNaN(secs)) return '0:00';
@@ -745,7 +898,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
           )}
         </button>
 
-        <button className="w-[38px] h-[38px] bg-[#1e1e1e] text-[#aaa] rounded-full flex items-center justify-center hover:bg-[#2e2e2e] hover:text-white" onClick={nextTrack} title="Next">
+                <button className="w-[38px] h-[38px] bg-[#1e1e1e] text-[#aaa] rounded-full flex items-center justify-center hover:bg-[#2e2e2e] hover:text-white" onClick={() => { nextTrack(); setSubscribeBoxOpen(false); }} title="Next">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
         </button>
 
@@ -790,23 +943,33 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
               <h4 className="m-0 text-[15px] text-white font-bold tracking-wider">LISTEN ON</h4>
               <button className="bg-transparent border-none text-[#aaa] text-xl cursor-pointer" onClick={() => setStreamModalOpen(false)}>&times;</button>
             </div>
-            <div className="flex flex-col gap-2">
-              {currentTrack?.spotify_url && (
-                <a href={currentTrack.spotify_url} target="_blank" rel="noreferrer" className="bg-[#252525] text-white p-3 rounded-[10px] font-bold text-sm border border-[#333] hover:border-[#ff8c00] block">Spotify</a>
-              )}
-              {currentTrack?.apple_music_url && (
-                <a href={currentTrack.apple_music_url} target="_blank" rel="noreferrer" className="bg-[#252525] text-white p-3 rounded-[10px] font-bold text-sm border border-[#333] hover:border-[#ff8c00] block">Apple Music</a>
-              )}
-              {currentTrack?.tidal_url && (
-                <a href={currentTrack.tidal_url} target="_blank" rel="noreferrer" className="bg-[#252525] text-white p-3 rounded-[10px] font-bold text-sm border border-[#333] hover:border-[#ff8c00] block">Tidal</a>
-              )}
-              {currentTrack?.youtube_url && (
-                <a href={currentTrack.youtube_url} target="_blank" rel="noreferrer" className="bg-[#252525] text-white p-3 rounded-[10px] font-bold text-sm border border-[#333] hover:border-[#ff8c00] block">YouTube</a>
-              )}
-              {currentTrack?.pandora_url && (
-                <a href={currentTrack.pandora_url} target="_blank" rel="noreferrer" className="bg-[#252525] text-white p-3 rounded-[10px] font-bold text-sm border border-[#333] hover:border-[#ff8c00] block">Pandora</a>
-              )}
+                        <div className="flex flex-col gap-2">
+              {[
+                { label: 'Spotify', url: currentTrack?.spotify_url },
+                { label: 'Apple Music', url: currentTrack?.apple_music_url },
+                { label: 'Tidal', url: currentTrack?.tidal_url },
+                { label: 'YouTube', url: currentTrack?.youtube_url },
+                { label: 'Pandora', url: currentTrack?.pandora_url },
+              ]
+                .filter((item) => Boolean(item.url?.trim()))
+                .map((item) => (
+                  <a
+                    key={item.label}
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={() => {
+                      if (currentTrack?.id) {
+                        logAnalyticsEvent('outbound_stream', currentTrack, { platform: item.label });
+                      }
+                    }}
+                    className="bg-[#252525] text-white p-3 rounded-[10px] font-bold text-sm border border-[#333] hover:border-[#ff8c00] block"
+                  >
+                    {item.label}
+                  </a>
+                ))}
             </div>
+
           </div>
         </div>
       )}
@@ -888,11 +1051,28 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
         </div>
       )}
 
-      <audio
+                     <audio
         ref={audioRef}
+        preload="metadata"
+        onPlay={() => {
+          setIsPlaying(true);
+          const active = currentTrackRef.current;
+          if (active?.id) {
+            logAnalyticsEvent('play', active);
+          }
+        }}
+        onPause={() => {
+          if (document.visibilityState === 'visible') {
+            setIsPlaying(false);
+          }
+        }}
+        onLoadedMetadata={handleTimeUpdate}
         onTimeUpdate={handleTimeUpdate}
         onEnded={handleTrackEnded}
+        onError={handleAudioError}
       />
+
+
     </div>
   );
 }

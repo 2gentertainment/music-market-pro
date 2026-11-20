@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   description: "Direct-to-fan platform for independent artists and labels",
 };
 
+const showDevSuite =
+  process.env.NODE_ENV === "development" &&
+  process.env.NEXT_PUBLIC_ENABLE_DEV_SUITE === "true";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
@@ -25,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#121212] text-white">
+        {showDevSuite && <DevSuiteBar />}
         {children}
       </body>
     </html>
