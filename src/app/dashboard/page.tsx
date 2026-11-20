@@ -1436,14 +1436,15 @@ const displayedAlbums = showAllAlbums ? filteredAlbums : filteredAlbums.slice(0,
                 </button>
               )}
             </div>
-            <input
+                       <input
               type="text"
               placeholder="Search by track title, album, or artist handle..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-800 focus:border-[#ff8c00] px-4 py-2.5 rounded-xl text-xs text-white outline-none"
+              className="w-full bg-neutral-900 border border-neutral-800 focus:border-[#ff8c00] px-4 py-2.5 rounded-xl text-base sm:text-xs text-white outline-none touch-manipulation"
               autoFocus
             />
+
           </div>
         )}
 
@@ -1661,7 +1662,7 @@ const displayedAlbums = showAllAlbums ? filteredAlbums : filteredAlbums.slice(0,
                 placeholder="Search by album/project title, song, or artist handle..."
                 value={albumSearchQuery}
                 onChange={(e) => setAlbumSearchQuery(e.target.value)}
-                className="w-full bg-neutral-900 border border-neutral-800 focus:border-[#ff8c00] px-4 py-2.5 rounded-xl text-xs text-white outline-none"
+                className="w-full bg-neutral-900 border border-neutral-800 focus:border-[#ff8c00] px-4 py-2.5 rounded-xl text-base sm:text-xs text-white outline-none touch-manipulation"
                 autoFocus
               />
             </div>
@@ -1765,8 +1766,8 @@ const displayedAlbums = showAllAlbums ? filteredAlbums : filteredAlbums.slice(0,
 
       {/* Share / Copy Links Modal */}
       {isShareModalOpen && (
-        <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-lg p-6 space-y-6 text-left shadow-2xl">
+        <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 touch-manipulation">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-lg p-6 space-y-6 text-left shadow-2xl touch-manipulation">
             <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
               <div>
                 <h3 className="font-extrabold text-xl text-white">
@@ -1791,7 +1792,7 @@ const displayedAlbums = showAllAlbums ? filteredAlbums : filteredAlbums.slice(0,
                     type="text"
                     readOnly
                     value={mainStoreUrl}
-                    className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-300 focus:outline-none"
+                    className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-base sm:text-xs text-neutral-300 focus:outline-none"
                   />
                   <button
                     onClick={() => handleCopy(mainStoreUrl, 'main_store')}
@@ -1902,8 +1903,8 @@ const artistPlayerUrl = `${typeof window !== 'undefined' ? window.location.origi
 
       {/* Direct Contact Support Modal */}
       {isSupportModalOpen && (
-        <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md p-6 space-y-6 text-left shadow-2xl animate-fadeIn">
+        <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 touch-manipulation">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-md p-6 space-y-6 text-left shadow-2xl animate-fadeIn touch-manipulation">
             <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
               <div>
                 <h3 className="font-extrabold text-xl text-white">Contact Music Market</h3>
@@ -1918,7 +1919,7 @@ const artistPlayerUrl = `${typeof window !== 'undefined' ? window.location.origi
                 <select
                   value={supportCategory}
                   onChange={(e) => setSupportCategory(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3 py-2.5 text-xs text-white outline-none cursor-pointer"
+                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3 py-2.5 text-base sm:text-xs text-white outline-none cursor-pointer"
                 >
                   <option value="Payouts & Billing">Payouts & Billing</option>
                   <option value="FeedBack">Feedback</option>
@@ -1934,7 +1935,7 @@ const artistPlayerUrl = `${typeof window !== 'undefined' ? window.location.origi
                   placeholder="e.g. Question regarding release rollouts"
                   value={supportSubject}
                   onChange={(e) => setSupportSubject(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3 py-2.5 text-xs text-white outline-none"
+                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3 py-2.5 text-base sm:text-xs text-white outline-none"
                   required
                 />
               </div>
@@ -1946,7 +1947,7 @@ const artistPlayerUrl = `${typeof window !== 'undefined' ? window.location.origi
                   placeholder="Describe your inquiry in detail..."
                   value={supportMessage}
                   onChange={(e) => setSupportMessage(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl p-3 text-xs text-white outline-none resize-none"
+                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl p-3 text-base sm:text-xs text-white outline-none resize-none"
                   required
                 />
               </div>
@@ -2082,8 +2083,8 @@ const artistPlayerUrl = `${typeof window !== 'undefined' ? window.location.origi
       )}
 
       {isLabelSetupModalOpen && (
-        <div className="fixed inset-0 bg-neutral-950/90 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-neutral-900 border border-[#ff8c00]/50 rounded-3xl w-full max-w-md p-6 space-y-6 text-left shadow-2xl animate-fadeIn">
+        <div className="fixed inset-0 bg-neutral-950/90 backdrop-blur-md flex items-center justify-center z-50 p-4 touch-manipulation">
+          <div className="bg-neutral-900 border border-[#ff8c00]/50 rounded-3xl w-full max-w-md p-6 space-y-6 text-left shadow-2xl animate-fadeIn touch-manipulation">
             <div className="border-b border-neutral-800 pb-4">
               <span className="text-[10px] bg-[#ff8c00] text-neutral-950 font-black uppercase px-2.5 py-0.5 rounded-md">
                 Executive Action Required
@@ -2102,7 +2103,7 @@ const artistPlayerUrl = `${typeof window !== 'undefined' ? window.location.origi
                   placeholder="e.g. 2G Entertainment"
                   value={labelInputName}
                   onChange={(e) => setLabelInputName(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3.5 py-3 text-sm text-white outline-none"
+                  className="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff8c00] rounded-xl px-3.5 py-3 text-base sm:text-sm text-white outline-none"
                   required
                   autoFocus
                 />
@@ -2238,8 +2239,8 @@ function GlobalAlbumReorderModal({
 
 
   return (
-    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-lg p-6 space-y-6 text-left shadow-2xl">
+    <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 touch-manipulation">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-lg p-6 space-y-6 text-left shadow-2xl touch-manipulation">
         <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
           <div>
             <h3 className="font-extrabold text-xl text-white">Reorder Albums</h3>
@@ -2322,7 +2323,8 @@ function GlobalAlbumReorderModal({
 
 export default function DashboardPage() {
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center p-6 selection:bg-[#ff8c00] selection:text-black">
+    <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center p-6 touch-manipulation selection:bg-[#ff8c00] selection:text-black">
+
       <Suspense fallback={<div className="text-neutral-400 my-auto">Loading dashboard...</div>}>
         <DashboardContent />
       </Suspense>
