@@ -117,13 +117,14 @@ export async function POST(request: Request) {
           country: 'us',
           entity_type: 'individual',
         },
-        dashboard: 'express',
-        defaults: {
-          responsibilities: {
-            fees_collector: 'application',
-            losses_collector: 'application',
-          },
-        },
+        dashboard: 'full',
+defaults: {
+  responsibilities: {
+    fees_collector: 'stripe',
+    losses_collector: 'stripe',
+  },
+},
+
         configuration: {
           merchant: {
             capabilities: {
