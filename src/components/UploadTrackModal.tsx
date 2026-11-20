@@ -102,13 +102,39 @@ export default function UploadTrackModal({
     return cleaned || withoutExt;
   };
 
+    const isMp3File = (file: File) =>
+    file.name.toLowerCase().endsWith('.mp3') ||
+    file.type === 'audio/mpeg' ||
+    file.type === 'audio/mp3';
+
+  const handleSingleFileSelected = (file: File | null) => {
+    if (!file) {
+      setAudioFile(null);
+      return;
+    }
+    if (!isMp3File(file)) {
+      setAudioFile(null);
+      setErrorMsg('Please select an .mp3 audio file.');
+      return;
+    }
+    setErrorMsg(null);
+    setAudioFile(file);
+  };
+
   const handleBatchFilesSelected = (filesList: FileList | null) => {
     if (!filesList || filesList.length === 0) {
       setBatchItems([]);
       return;
     }
 
-    const nextItems = Array.from(filesList).map((file, idx) => ({
+    const validFiles = Array.from(filesList).filter(isMp3File);
+    if (validFiles.length !== filesList.length) {
+      setErrorMsg('Only .mp3 files are allowed. Non-MP3 files were skipped.');
+    } else {
+      setErrorMsg(null);
+    }
+
+    const nextItems = validFiles.map((file, idx) => ({
       id: `${Date.now()}-${idx}-${file.name}`,
       file,
       title: formatTitleFromFilename(file.name),
@@ -586,13 +612,12 @@ className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.
             </div>
           )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {(userTier === 'artist' || userTier === 'label') && uploadMode === 'batch' ? (
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-neutral-300">Audio Master Files (.mp3/.wav) *</label>
+                <label className="text-xs font-semibold text-neutral-300">Audio Master Files (.mp3) *</label>
                 <input
                   type="file"
-                  accept=".mp3,audio/mpeg,audio/mp3"
                   multiple
                   required={batchItems.length === 0}
                   onChange={(e) => handleBatchFilesSelected(e.target.files)}
@@ -601,16 +626,16 @@ className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-2.
               </div>
             ) : (
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-neutral-300">Audio Master File (.mp3/.wav) *</label>
+                <label className="text-xs font-semibold text-neutral-300">Audio Master File (.mp3) *</label>
                 <input
                   type="file"
-                  accept="audio/*"
                   required={uploadMode === 'single' || userTier === 'free'}
-                  onChange={(e) => setAudioFile(e.target.value ? e.target.files?.[0] || null : e.target.files?.[0] || null)}
+                  onChange={(e) => handleSingleFileSelected(e.target.files?.[0] || null)}
                   className="w-full text-xs text-neutral-400 file:mr-2 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#ff8c00] file:text-neutral-950 hover:file:bg-[#e07b00] cursor-pointer"
                 />
               </div>
             )}
+
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-neutral-300">
