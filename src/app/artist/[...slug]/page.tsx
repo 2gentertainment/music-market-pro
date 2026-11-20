@@ -286,8 +286,8 @@ export default function DynamicStorefrontRouter() {
   const artistTier = profile?.tier === 'label' ? 'artist' : (profile?.tier || 'artist');
 
 
-    return (
-    <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center p-2">
+  return (
+    <div className="h-[100dvh] w-full bg-neutral-950 flex flex-col items-center justify-center overflow-hidden p-0 touch-manipulation">
       <AudioPlayer
         artistHandle={artistHandleToUse}
         initialTracks={tracks}
