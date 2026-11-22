@@ -339,7 +339,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ received: true });
 
-  } catch (err: any) {
+ } catch (err: any) {
     console.error("Unhandled Stripe webhook error:", err);
     return NextResponse.json(
       { error: err?.message || "Webhook handler failed" },
