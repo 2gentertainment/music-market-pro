@@ -137,6 +137,25 @@ function DashboardContent() {
     }
   };
 
+  const forceKickRemovedAccount = async () => {
+    setTracks([]);
+    setRosterArtistsList([]);
+    setUserProfileId(null);
+    setUserHandle(null);
+    setArtistHandle(null);
+    setStripeAccountId(null);
+    setIsSuperAdmin(false);
+    setLoadingData(false);
+    setIsCheckingAuth(false);
+
+    try {
+      await _supabase.auth.signOut({ scope: 'local' });
+    } catch {
+      // Ignore signOut error if session was already invalidated
+    }
+    router.replace('/auth');
+  };
+
 
   useEffect(() => {
   const handleClickOutside = (event: MouseEvent) => {
@@ -173,6 +192,30 @@ function DashboardContent() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [router]);
 
+  useEffect(() => {
+    if (!userProfileId) return;
+
+    const channel = _supabase
+      .channel(`profile-guard-${userProfileId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${userProfileId}`,
+        },
+        () => {
+          forceKickRemovedAccount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      _supabase.removeChannel(channel);
+    };
+  }, [userProfileId]);
+
 
     const verifyAndLoadWorkspace = async () => {
     try {
@@ -184,18 +227,30 @@ function DashboardContent() {
       let ownerId = null;
 
       const { data: { session } } = await _supabase.auth.getSession();
-      
+
       if (session?.user) {
-        ownerId = session.user.id;
+        const { data: { user: verifiedUser }, error: userErr } = await _supabase.auth.getUser();
+        if (userErr || !verifiedUser) {
+          await forceKickRemovedAccount();
+          return;
+        }
+
+        const { data: activeProfile, error: profileErr } = await _supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', verifiedUser.id)
+          .maybeSingle();
+
+        if (profileErr || !activeProfile) {
+          await forceKickRemovedAccount();
+          return;
+        }
+
+        ownerId = activeProfile.id;
         setUserProfileId(ownerId);
-        setUserEmail(session.user.email || null);
+        setUserEmail(verifiedUser.email || activeProfile.email || null);
       } else if (!accountId && !customHandle && (!isDevSuiteEnabled || !devTier || devTier === 'logged_out')) {
-        setUserProfileId(null);
-        setUserHandle(null);
-        setArtistHandle(null);
-        setIsSuperAdmin(false);
-        setIsCheckingAuth(false);
-        router.replace('/auth');
+        await forceKickRemovedAccount();
         return;
       }
 
