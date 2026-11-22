@@ -109,67 +109,20 @@ export async function POST(request: Request) {
         console.error('AWeber sync warning (auth signup):', aweberErr);
       }
 
-      // 3. Initialize Stripe Express account via Accounts v2 (Application responsibility model)
-      const account = await stripe.v2.core.accounts.create({
-        contact_email: email,
-        display_name: resolvedStageName || name || emailHandle,
-        identity: {
-          country: 'us',
-          entity_type: 'individual',
-        },
-        dashboard: 'full',
-defaults: {
-  responsibilities: {
-    fees_collector: 'stripe',
-    losses_collector: 'stripe',
-  },
-},
-
-        configuration: {
-          merchant: {
-            capabilities: {
-              card_payments: { requested: true },
-            },
-          },
-          recipient: {
-            capabilities: {
-              stripe_balance: {
-                stripe_transfers: { requested: true },
-              },
-            },
-          },
-        },
-        metadata: {
-          supabaseUserId: finalUser?.id || 'pending_auth',
-          handle: uniqueHandle,
-        },
+           // Sign in the newly created user so AuthPage can set the session and land on /dashboard
+      const supabaseUserClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data: signInData } = await supabaseUserClient.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      if (finalUser?.id) {
-        await supabaseAdmin
-          .from('profiles')
-          .update({ stripe_account_id: account.id })
-          .eq('id', finalUser.id);
-      }
-
-      // 4. Generate Stripe onboarding link via Accounts v2
-      const accountLink = await stripe.v2.core.accountLinks.create({
-        account: account.id,
-        use_case: {
-          type: 'account_onboarding',
-          account_onboarding: {
-            refresh_url: `${appUrl}/dashboard?connect=refresh`,
-            return_url: `${appUrl}/dashboard?connect=success&account_id=${account.id}`,
-          },
-        },
+      return NextResponse.json({
+        success: true,
+        redirectTo: '/dashboard',
+        session: signInData?.session || null,
+        user: finalUser,
       });
 
-      // 5. Return Stripe URL so sign-up redirects straight to Stripe onboarding (Never dashboard)
-      return NextResponse.json({ 
-        success: true, 
-        url: accountLink.url, 
-        user: finalUser 
-      });
     }
 
     if (action === 'login') {
