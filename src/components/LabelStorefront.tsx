@@ -481,7 +481,7 @@ export default function LabelStorefront({ profile, tracks, labelHandle }: LabelS
 
 
     return (
-    <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center px-3.5 pt-5 pb-28 sm:px-6 sm:pt-6 sm:pb-28 md:p-8 md:pb-28 touch-manipulation overflow-x-hidden">
+    <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center px-3.5 pt-5 pb-36 sm:px-6 sm:pt-6 sm:pb-36 md:p-8 md:pb-36 touch-manipulation overflow-x-hidden">
       <div className="w-full max-w-4xl space-y-6 sm:space-y-8 min-w-0">
 
         {/* Header / Branding */}
@@ -793,7 +793,10 @@ export default function LabelStorefront({ profile, tracks, labelHandle }: LabelS
       </div>
 
       {currentTrack && (
-        <div className="fixed bottom-0 inset-x-0 z-40 bg-neutral-950/95 backdrop-blur-md border-t border-neutral-800 px-3.5 py-2.5 sm:px-6">
+        <div
+          style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}
+          className="fixed bottom-2.5 sm:bottom-4 inset-x-2.5 sm:inset-x-6 z-40 bg-neutral-950/95 backdrop-blur-md border border-neutral-800 rounded-2xl px-3.5 pt-2.5 shadow-2xl"
+        >
           <div className="max-w-4xl mx-auto flex items-center justify-between gap-3 min-w-0">
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <img
