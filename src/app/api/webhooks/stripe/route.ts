@@ -195,24 +195,14 @@ export async function POST(req: Request) {
         const orderId = session.metadata?.orderId;
         const trackId = session.metadata?.trackId;
         const albumName = session.metadata?.albumName || "";
+        const rawItemType = session.metadata?.itemType || "";
+        const normalizedItemType: "single" | "album" =
+          rawItemType === "album" || Boolean(albumName && !trackId) ? "album" : "single";
         const artistHandle = session.metadata?.artistHandle || session.metadata?.handle;
         const rawCustomerEmail =
           session.customer_details?.email || session.customer_email || "";
         const customerEmail = rawCustomerEmail.trim().toLowerCase() || null;
         const customerName = session.customer_details?.name || null;
-
-        let parsedTrackIds: string[] = [];
-        if (session.metadata?.trackIds) {
-          try {
-            const arr = JSON.parse(session.metadata.trackIds);
-            if (Array.isArray(arr)) parsedTrackIds = arr.map(String).filter(Boolean);
-          } catch {
-            parsedTrackIds = [];
-          }
-        }
-        if (parsedTrackIds.length === 0 && trackId) {
-          parsedTrackIds = [String(trackId)];
-        }
 
         const totalCents = session.amount_total || 0;
         const grossAmount = totalCents / 100;
@@ -245,78 +235,29 @@ export async function POST(req: Request) {
           }
         }
 
-        // 2. Record PAID order & order_items so the Customer Download Vault finds the purchase
+        // 2. Record purchase in public.purchases so Customer Download Vault unlocks immediately
         if (customerEmail) {
-          let resolvedOrderId = orderId || null;
+          const itemIdValue =
+            normalizedItemType === "album"
+              ? albumName || trackId || null
+              : trackId || null;
 
-          if (resolvedOrderId) {
-            await supabase
-              .from("orders")
-              .update({
-                status: "PAID",
-                stripe_payment_intent_id:
-                  typeof session.payment_intent === "string"
-                    ? session.payment_intent
-                    : session.payment_intent?.id || null,
-                customer_email: customerEmail,
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", resolvedOrderId);
-          } else {
-            const { data: createdOrder, error: orderInsertError } = await supabase
-              .from("orders")
-              .insert({
-                customer_email: customerEmail,
-                status: "PAID",
+          const { error: purchaseError } = await supabase
+            .from("purchases")
+            .upsert(
+              {
                 stripe_session_id: session.id,
-                stripe_payment_intent_id:
-                  typeof session.payment_intent === "string"
-                    ? session.payment_intent
-                    : session.payment_intent?.id || null,
-                total_amount: grossAmount,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              })
-              .select("id")
-              .maybeSingle();
+                buyer_email: customerEmail,
+                artist_handle: (artistHandle || "independent").toLowerCase(),
+                item_type: normalizedItemType,
+                item_id: itemIdValue,
+                amount_paid: grossAmount,
+              },
+              { onConflict: "stripe_session_id" }
+            );
 
-            if (orderInsertError) {
-              console.error("Supabase error creating PAID order:", orderInsertError);
-            } else {
-              resolvedOrderId = createdOrder?.id || null;
-            }
-          }
-
-          if (resolvedOrderId) {
-            let itemTrackIds = [...parsedTrackIds];
-
-            if (itemTrackIds.length === 0 && albumName) {
-              const { data: albumTracks } = await supabase
-                .from("tracks_pro")
-                .select("id, album_name")
-                .is("deleted_at", null);
-
-              itemTrackIds = (albumTracks || [])
-                .filter((t) =>
-                  t.album_name
-                    ?.split(",")
-                    .map((s: string) => s.trim().toLowerCase())
-                    .includes(albumName.trim().toLowerCase())
-                )
-                .map((t) => String(t.id));
-            }
-
-            if (itemTrackIds.length > 0) {
-              const { error: itemsError } = await supabase.from("order_items").insert(
-                itemTrackIds.map((tId) => ({
-                  order_id: resolvedOrderId,
-                  track_id: tId,
-                }))
-              );
-              if (itemsError) {
-                console.error("Supabase error inserting order_items:", itemsError);
-              }
-            }
+          if (purchaseError) {
+            console.error("Supabase error inserting into purchases:", purchaseError);
           }
         }
 
