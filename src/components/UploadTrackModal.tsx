@@ -76,6 +76,10 @@ export default function UploadTrackModal({
         .map((artist) => {
           const handleValue = (artist?.artist_handle || artist?.handle || '').trim();
           if (!handleValue) return null;
+          const displayArtistName =
+            artist?.stage_name?.trim() ||
+            artist?.name?.trim() ||
+            handleValue;
           const isMain =
             Boolean(artistHandle) &&
             handleValue.toLowerCase() === artistHandle!.trim().toLowerCase();
@@ -84,7 +88,7 @@ export default function UploadTrackModal({
             {
               key: artist.id || handleValue,
               value: handleValue,
-              label: `${artist.name || handleValue} (@${handleValue})${isMain ? ' • Main' : ''}`,
+              label: `${displayArtistName} (@${handleValue})${isMain ? ' • Main' : ''}`,
             },
           ] as const;
         })
