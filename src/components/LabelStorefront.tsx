@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+
 import { supabase as _supabase } from '@/utils/supabase';
 
 interface Track {
@@ -87,10 +88,12 @@ export default function LabelStorefront({ profile, tracks, labelHandle }: LabelS
   
     const [albumCoverMap, setAlbumCoverMap] = useState<Record<string, string>>({});
     const [mainArtistHandle, setMainArtistHandle] = useState<string | null>(null);
-  const [firstRosterArtist, setFirstRosterArtist] = useState<{
+   const [firstRosterArtist, setFirstRosterArtist] = useState<{
     handle: string;
     name?: string | null;
   } | null>(null);
+  const upsellSectionRef = useRef<HTMLDivElement | null>(null);
+
 
 
 
@@ -291,6 +294,21 @@ export default function LabelStorefront({ profile, tracks, labelHandle }: LabelS
     }
   }
 
+  const scrollToAlbumUpsellIfPresent = (track: Track, paidTier: boolean) => {
+    if (!paidTier || typeof window === 'undefined') return;
+    const trackAlbums = track.album_name
+      ? track.album_name.split(',').map((s: string) => s.trim()).filter(Boolean)
+      : [];
+    if (trackAlbums.length === 0) return;
+
+    requestAnimationFrame(() => {
+      upsellSectionRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  };
+
   const togglePlayTrack = (track: Track) => {
 
     if (currentTrack?.id === track.id && isPlaying) {
@@ -315,9 +333,11 @@ export default function LabelStorefront({ profile, tracks, labelHandle }: LabelS
         logStorefrontEvent('play', track);
       })
       .catch(err => console.error("Audio playback error:", err));
-    setAudioInstance(newAudio);
+       setAudioInstance(newAudio);
     setCurrentTrack(track);
     setIsPlaying(true);
+    scrollToAlbumUpsellIfPresent(track, isPaidTier);
+
 
 
        newAudio.onended = () => setIsPlaying(false);
@@ -361,11 +381,13 @@ export default function LabelStorefront({ profile, tracks, labelHandle }: LabelS
       })
       .catch((err) => console.error('Audio playback error:', err));
 
-    setAudioInstance(newAudio);
+       setAudioInstance(newAudio);
     setCurrentTrack(targetTrack);
     setIsPlaying(true);
+    scrollToAlbumUpsellIfPresent(targetTrack, isPaidTier);
     newAudio.onended = () => setIsPlaying(false);
   };
+
 
   const handleBuyTrack = async (track: Track) => {
 
@@ -623,9 +645,13 @@ export default function LabelStorefront({ profile, tracks, labelHandle }: LabelS
           </div>
         )}
 
-        {/* Dynamic Multiple Album Upsell Widget */}
+                {/* Dynamic Multiple Album Upsell Widget */}
         {isPaidTier && displayAlbums.length > 0 && (
-          <div className="bg-neutral-900 border border-[#ff8c00]/40 rounded-3xl p-6 text-left space-y-4 shadow-xl shadow-[#ff8c00]/5 animate-fadeIn">
+          <div
+            ref={upsellSectionRef}
+            className="scroll-mt-4 bg-neutral-900 border border-[#ff8c00]/40 rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-left space-y-4 shadow-xl shadow-[#ff8c00]/5 animate-fadeIn"
+          >
+
             <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] bg-[#ff8c00] text-neutral-950 font-black uppercase px-2.5 py-0.5 rounded-md">
