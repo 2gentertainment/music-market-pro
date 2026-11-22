@@ -204,6 +204,16 @@ export async function POST(req: Request) {
         const customerEmail = rawCustomerEmail.trim().toLowerCase() || null;
         const customerName = session.customer_details?.name || null;
 
+        console.log("[Webhook payment]", {
+          sessionId: session.id,
+          customerEmail,
+          artistHandle,
+          trackId,
+          albumName,
+          normalizedItemType,
+          amountTotal: session.amount_total,
+        });
+
         const totalCents = session.amount_total || 0;
         const grossAmount = totalCents / 100;
 
@@ -242,7 +252,7 @@ export async function POST(req: Request) {
               ? albumName || trackId || null
               : trackId || null;
 
-          const { error: purchaseError } = await supabase
+          const { data: upsertedPurchase, error: purchaseError } = await supabase
             .from("purchases")
             .upsert(
               {
@@ -254,11 +264,18 @@ export async function POST(req: Request) {
                 amount_paid: grossAmount,
               },
               { onConflict: "stripe_session_id" }
-            );
+            )
+            .select()
+            .maybeSingle();
 
           if (purchaseError) {
             console.error("Supabase error inserting into purchases:", purchaseError);
+          } else {
+            console.log("[Webhook purchases saved]", upsertedPurchase);
           }
+        } else {
+          console.warn("[Webhook payment skipped purchases] Missing customerEmail on session:", session.id);
+        }
         }
 
         // 3. Log telemetry for Admin Dashboard
