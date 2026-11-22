@@ -1109,6 +1109,25 @@ const displayedAlbums = showAllAlbums ? filteredAlbums : filteredAlbums.slice(0,
         </div>
       </div>
 
+
+      {!stripeAccountId && (
+        <div className="bg-emerald-500/10 border border-emerald-500/35 rounded-2xl p-4 text-left flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-black uppercase px-2 py-0.5 rounded">
+              Payouts & Direct Sales Soft-Locked
+            </span>
+            <p className="text-xs text-white font-semibold pt-1">
+              Your workspace and catalog are active—connect your Stripe payout account to unlock live direct track sales and payouts.
+            </p>
+            <p className="text-[11px] text-neutral-400">
+              Use the <span className="text-emerald-400 font-semibold">Verify Payout Method</span> card above anytime to finish Stripe setup.
+            </p>
+          </div>
+        </div>
+      )}
+
+
+
       {/* Upgrade Banner for Free Tier */}
       {userTier === 'free' && (
         <div className="bg-gradient-to-r from-[#ff8c00]/15 via-neutral-900 to-neutral-900 border border-[#ff8c00]/40 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-left">
