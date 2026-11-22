@@ -187,14 +187,17 @@ export default function HomePage() {
       });
 
       const data = await res.json();
-      if (res.ok && data.url) {
-        window.location.href = data.url;
+      if (res.ok && (data.url || data.redirectTo)) {
+        if (selectedTier === 'free' && !data.url) {
+          await _supabase.auth.signInWithPassword({ email, password });
+        }
+        window.location.href = data.url || data.redirectTo;
         return;
       } else {
         setFormError(
           data.error ||
             (selectedTier === 'free'
-              ? 'Failed to initialize payout onboarding.'
+              ? 'Failed to set up your free workspace.'
               : 'Failed to start subscription checkout.')
         );
       }
@@ -438,7 +441,7 @@ export default function HomePage() {
                   </div>
 
                   <button type="submit" className="w-full bg-[#ff8c00] hover:bg-[#e07b00] text-black font-bold py-3.5 rounded-[10px] text-[14px] transition-all cursor-pointer mt-2">
-                    {selectedTier === 'free' ? 'Continue to Stripe Payout Setup →' : `Continue to ${selectedTier === 'artist' ? 'Artist' : 'Label'} Checkout →`}
+                    {selectedTier === 'free' ? 'Create Free Workspace →' : `Continue to ${selectedTier === 'artist' ? 'Artist' : 'Label'} Checkout →`}
                   </button>
                 </form>
               </>
