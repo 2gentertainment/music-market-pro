@@ -129,6 +129,7 @@ export default function DirectBalanceButton({
             tier,
             handle: artistHandle,
             handleName: displayName || artistHandle,
+            startPayoutOnboarding: true,
           }),
         });
 
