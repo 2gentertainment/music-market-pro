@@ -113,77 +113,102 @@ export async function POST(req: Request) {
         console.error('AWeber sync warning (homepage signup):', aweberErr);
       }
 
-      const finalUserId = profileData?.id || resolvedUserId;
+           const finalUserId = profileData?.id || resolvedUserId;
 
-      // 4. Provision Stripe Express Account via Accounts v2 (Application responsibility model)
-      const account = await stripe.v2.core.accounts.create({
-        contact_email: email,
-        display_name: handleName || fullName || emailHandle,
-        identity: {
-          country: 'us',
-          entity_type: 'individual',
-        },
-        dashboard: 'full',
-defaults: {
-  responsibilities: {
-    fees_collector: 'stripe',
-    losses_collector: 'stripe',
-  },
-},
+      // If startPayoutOnboarding is explicitly requested (e.g. from dashboard), reuse existing stripe_account_id if present
+      if (body.startPayoutOnboarding) {
+        let existingStripeAccountId: string | null = profileData?.stripe_account_id || null;
 
-        configuration: {
-          merchant: {
-            capabilities: {
-              card_payments: { requested: true },
+        if (!existingStripeAccountId) {
+          const { data: lookupRow } = await supabaseAdmin
+            .from('profiles')
+            .select('stripe_account_id')
+            .eq(finalUserId ? 'id' : 'email', finalUserId || email)
+            .maybeSingle();
+          existingStripeAccountId = lookupRow?.stripe_account_id || null;
+        }
+
+        let stripeAcctId = existingStripeAccountId;
+
+        if (!stripeAcctId) {
+          const account = await stripe.v2.core.accounts.create({
+            contact_email: email,
+            display_name: handleName || fullName || emailHandle,
+            identity: {
+              country: 'us',
+              entity_type: 'individual',
             },
-          },
-          recipient: {
-            capabilities: {
-              stripe_balance: {
-                stripe_transfers: { requested: true },
+            dashboard: 'full',
+            defaults: {
+              responsibilities: {
+                fees_collector: 'stripe',
+                losses_collector: 'stripe',
               },
             },
-          },
-        },
-        metadata: {
-          supabaseUserId: finalUserId || 'pending_auth',
-          handle: uniqueHandle,
-          tier: normalizedTier,
-          commissionRate: String(commissionRate),
-        },
-      });
+            configuration: {
+              merchant: {
+                capabilities: {
+                  card_payments: { requested: true },
+                },
+              },
+              recipient: {
+                capabilities: {
+                  stripe_balance: {
+                    stripe_transfers: { requested: true },
+                  },
+                },
+              },
+            },
+            metadata: {
+              supabaseUserId: finalUserId || 'pending_auth',
+              handle: uniqueHandle,
+              tier: normalizedTier,
+              commissionRate: String(commissionRate),
+            },
+          });
 
-      // 5. Update profile immediately with generated stripe_account_id
-      if (finalUserId) {
-        await supabaseAdmin
-          .from('profiles')
-          .update({ stripe_account_id: account.id })
-          .eq('id', finalUserId);
-      } else {
-        await supabaseAdmin
-          .from('profiles')
-          .update({ stripe_account_id: account.id })
-          .eq('email', email);
+          stripeAcctId = account.id;
+
+          if (finalUserId) {
+            await supabaseAdmin
+              .from('profiles')
+              .update({ stripe_account_id: stripeAcctId })
+              .eq('id', finalUserId);
+          } else {
+            await supabaseAdmin
+              .from('profiles')
+              .update({ stripe_account_id: stripeAcctId })
+              .eq('email', email);
+          }
+        }
+
+        const accountLink = await stripe.v2.core.accountLinks.create({
+          account: stripeAcctId,
+          use_case: {
+            type: 'account_onboarding',
+            account_onboarding: {
+              refresh_url: `${appUrl}/dashboard?connect=refresh`,
+              return_url: `${appUrl}/dashboard?connect=success&account_id=${stripeAcctId}`,
+            },
+          },
+        });
+
+        return NextResponse.json({
+          url: accountLink.url,
+          accountId: stripeAcctId,
+          profileUrl: artistProfileUrl,
+          commissionRate,
+        });
       }
 
-      // 6. Generate Stripe Express Onboarding Link via Accounts v2
-      const accountLink = await stripe.v2.core.accountLinks.create({
-        account: account.id,
-        use_case: {
-          type: 'account_onboarding',
-          account_onboarding: {
-            refresh_url: `${appUrl}/dashboard?connect=refresh`,
-            return_url: `${appUrl}/dashboard?connect=success&account_id=${account.id}`,
-          },
-        },
-      });
-
+      // Default free signup flow: land directly on /dashboard after AWeber + profile setup
       return NextResponse.json({
-        url: accountLink.url,
-        accountId: account.id,
+        redirectTo: `${appUrl}/dashboard`,
+        accountId: profileData?.stripe_account_id || null,
         profileUrl: artistProfileUrl,
         commissionRate,
       });
+
     }
 
     // 3. Paid Tier Subscription Path (10% Artist / 5% Label)
