@@ -20,6 +20,8 @@ function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const accountId = searchParams.get('account_id');
+  const connectStatus = searchParams.get('connect');
+  const pendingAccountParam = searchParams.get('pending_account');
   const customHandle = searchParams.get('handle');
   const returnedTier = searchParams.get('tier');
   const scheduledTier = searchParams.get('scheduled');
@@ -881,6 +883,46 @@ function DashboardContent() {
       window.removeEventListener('mm_tier_changed', handleGlobalTierChange);
     };
   }, [accountId, customHandle, router]);
+
+  useEffect(() => {
+    if (connectStatus !== 'verify' || !pendingAccountParam) return;
+
+    let cancelled = false;
+
+    async function verifyReturnOnboarding() {
+      try {
+        const res = await fetch('/api/connect/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pendingAccountId: pendingAccountParam,
+            profileId: userProfileId || profileId,
+            handle: resolvedHandle || customHandle,
+          }),
+        });
+
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (res.ok && data.verified && data.accountId) {
+          setStripeAccountId(data.accountId);
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete('connect');
+          cleanUrl.searchParams.delete('pending_account');
+          router.replace(`${cleanUrl.pathname}${cleanUrl.search}`);
+          verifyAndLoadWorkspace();
+        }
+      } catch (err) {
+        console.error('Return onboarding verification error:', err);
+      }
+    }
+
+    verifyReturnOnboarding();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connectStatus, pendingAccountParam, userProfileId, profileId, resolvedHandle, customHandle, router]);
 
 
   if (isCheckingAuth) {
