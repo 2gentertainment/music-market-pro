@@ -5,7 +5,6 @@ import { syncCreatorToAweber } from "@/lib/aweber";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -137,7 +136,6 @@ export async function POST(req: Request) {
             updatePayload.tier = tierFromMetadata;
           }
 
-
           if (couponCodeUsed) {
             updatePayload.first_month_coupon_used = true;
             updatePayload.first_month_coupon_used_at = new Date().toISOString();
@@ -204,6 +202,9 @@ export async function POST(req: Request) {
         const customerEmail = rawCustomerEmail.trim().toLowerCase() || null;
         const customerName = session.customer_details?.name || null;
 
+        const totalCents = session.amount_total || 0;
+        const grossAmount = totalCents / 100;
+
         console.log("[Webhook payment]", {
           sessionId: session.id,
           customerEmail,
@@ -214,9 +215,6 @@ export async function POST(req: Request) {
           amountTotal: session.amount_total,
         });
 
-        const totalCents = session.amount_total || 0;
-        const grossAmount = totalCents / 100;
-
         // 1. Log Artist Earnings immediately so DirectBalanceButton updates live!
         if (artistHandle && grossAmount > 0) {
           const { data: artistProfile } = await supabase
@@ -225,7 +223,6 @@ export async function POST(req: Request) {
             .or(`handle.eq.${artistHandle},artist_handle.eq.${artistHandle}`)
             .maybeSingle();
 
-          // Free = 15%, Paid Artist = 10%, Label = 5%
           const commissionRate = getTierCommissionRate(artistProfile?.tier);
           const platformFee = Number((grossAmount * commissionRate).toFixed(2));
           const netAmount = Number((grossAmount - platformFee).toFixed(2));
@@ -274,8 +271,10 @@ export async function POST(req: Request) {
             console.log("[Webhook purchases saved]", upsertedPurchase);
           }
         } else {
-          console.warn("[Webhook payment skipped purchases] Missing customerEmail on session:", session.id);
-        }
+          console.warn(
+            "[Webhook payment skipped purchases] Missing customerEmail on session:",
+            session.id
+          );
         }
 
         // 3. Log telemetry for Admin Dashboard
@@ -284,14 +283,22 @@ export async function POST(req: Request) {
             event_type: "purchase_intent",
             track_id: trackId || null,
             visitor_id: customerEmail || "stripe_customer",
-            metadata: { orderId: orderId || null, amount: session.amount_total, type: "track_purchase" },
+            metadata: {
+              orderId: orderId || null,
+              amount: session.amount_total,
+              type: "track_purchase",
+            },
             created_at: new Date().toISOString(),
           },
         ]);
 
         // 4. Automatically sync customer to AWeber buyer vault list
         if (customerEmail) {
-          await syncCustomerToAWeber(customerEmail, customerName || "Music Market Buyer", trackId);
+          await syncCustomerToAWeber(
+            customerEmail,
+            customerName || "Music Market Buyer",
+            trackId
+          );
         }
       }
     }
@@ -303,7 +310,12 @@ export async function POST(req: Request) {
       const subscription = event.data.object as Stripe.Subscription;
       const meta = subscription.metadata || {};
       const explicitProfileId = meta.profileId || meta.userId || null;
-      const customHandle = (meta.customHandle || meta.handleName || meta.handle || "").trim();
+      const customHandle = (
+        meta.customHandle ||
+        meta.handleName ||
+        meta.handle ||
+        ""
+      ).trim();
       const customerId =
         typeof subscription.customer === "string"
           ? subscription.customer
@@ -349,14 +361,16 @@ export async function POST(req: Request) {
           .eq("id", targetProfileId);
 
         if (downgradeError) {
-          console.error("Supabase error downgrading profile on subscription delete:", downgradeError);
+          console.error(
+            "Supabase error downgrading profile on subscription delete:",
+            downgradeError
+          );
         }
       }
     }
 
     return NextResponse.json({ received: true });
-
- } catch (err: any) {
+  } catch (err: any) {
     console.error("Unhandled Stripe webhook error:", err);
     return NextResponse.json(
       { error: err?.message || "Webhook handler failed" },
