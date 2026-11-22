@@ -304,6 +304,87 @@ export async function POST(req: Request) {
     }
 
     // -------------------------------------------------------------
+    // CASE 2B (Backup): payment_intent.succeeded Fallback for Store Purchases
+    // -------------------------------------------------------------
+    else if (event.type === "payment_intent.succeeded") {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+
+      // Find the Checkout Session tied to this PaymentIntent, if any
+      const sessions = await stripe.checkout.sessions.list({
+        payment_intent: paymentIntent.id,
+        limit: 1,
+      });
+      const linkedSession = sessions.data[0] || null;
+      const sessionIdForKey = linkedSession?.id || paymentIntent.id;
+
+      // Skip if checkout.session.completed already recorded this purchase
+      const { data: existingPurchase } = await supabase
+        .from("purchases")
+        .select("id")
+        .eq("stripe_session_id", sessionIdForKey)
+        .maybeSingle();
+
+      if (!existingPurchase) {
+        const meta = linkedSession?.metadata || paymentIntent.metadata || {};
+        const trackId = meta.trackId || null;
+        const albumName = meta.albumName || "";
+        const rawItemType = meta.itemType || "";
+        const normalizedItemType: "single" | "album" =
+          rawItemType === "album" || Boolean(albumName && !trackId) ? "album" : "single";
+        const artistHandle = meta.artistHandle || meta.handle || "independent";
+
+        const rawEmail =
+          linkedSession?.customer_details?.email ||
+          linkedSession?.customer_email ||
+          paymentIntent.receipt_email ||
+          "";
+        const customerEmail = rawEmail.trim().toLowerCase() || null;
+        const customerName =
+          linkedSession?.customer_details?.name || "Music Market Buyer";
+
+        const amountCents =
+          linkedSession?.amount_total ?? paymentIntent.amount_received ?? paymentIntent.amount ?? 0;
+        const grossAmount = amountCents / 100;
+
+        // Only treat as a direct store asset purchase if store metadata or receipt email is present
+        const isStorePurchase = Boolean(trackId || albumName || meta.artistHandle || meta.handle);
+
+        if (isStorePurchase && customerEmail) {
+          const itemIdValue =
+            normalizedItemType === "album"
+              ? albumName || trackId || null
+              : trackId || null;
+
+          const { data: backupPurchase, error: backupPurchaseError } = await supabase
+            .from("purchases")
+            .upsert(
+              {
+                stripe_session_id: sessionIdForKey,
+                buyer_email: customerEmail,
+                artist_handle: artistHandle.toLowerCase(),
+                item_type: normalizedItemType,
+                item_id: itemIdValue,
+                amount_paid: grossAmount,
+              },
+              { onConflict: "stripe_session_id" }
+            )
+            .select()
+            .maybeSingle();
+
+          if (backupPurchaseError) {
+            console.error(
+              "Supabase error inserting backup purchase from payment_intent.succeeded:",
+              backupPurchaseError
+            );
+          } else {
+            console.log("[Webhook backup purchases saved]", backupPurchase);
+            await syncCustomerToAWeber(customerEmail, customerName, trackId);
+          }
+        }
+      }
+    }
+
+    // -------------------------------------------------------------
     // CASE 3: Subscription Cancellation / Expiration -> Free Tier
     // -------------------------------------------------------------
     else if (event.type === "customer.subscription.deleted") {
