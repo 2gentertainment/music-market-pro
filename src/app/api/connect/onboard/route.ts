@@ -118,8 +118,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // One-time Stripe Express account creation via Accounts v2 (Application responsibility model)
-    let stripeAccountId = profileData?.stripe_account_id || existingProfile?.stripe_account_id || null;
+    // Reuse existing stripe_account_id if already created so retries never orphan accounts
+    let stripeAccountId =
+      profileData?.stripe_account_id || existingProfile?.stripe_account_id || null;
 
     if (!stripeAccountId) {
       const account = await stripe.v2.core.accounts.create({
@@ -130,13 +131,12 @@ export async function POST(req: Request) {
           entity_type: 'individual',
         },
         dashboard: 'full',
-defaults: {
-  responsibilities: {
-    fees_collector: 'stripe',
-    losses_collector: 'stripe',
-  },
-},
-
+        defaults: {
+          responsibilities: {
+            fees_collector: 'stripe',
+            losses_collector: 'stripe',
+          },
+        },
         configuration: {
           merchant: {
             capabilities: {
@@ -180,7 +180,7 @@ defaults: {
       use_case: {
         type: 'account_onboarding',
         account_onboarding: {
-          refresh_url: `${baseUrl}/market?connect=refresh`,
+          refresh_url: `${baseUrl}/dashboard?connect=refresh&account_id=${stripeAccountId}&handle=${activeHandle}`,
           return_url: `${baseUrl}/dashboard?connect=success&account_id=${stripeAccountId}&handle=${activeHandle}`,
         },
       },
