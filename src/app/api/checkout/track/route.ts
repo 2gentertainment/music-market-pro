@@ -211,7 +211,7 @@ export async function POST(req: Request) {
           items.flatMap((it: any) =>
             Array.isArray(it.trackIds) && it.trackIds.length > 0
               ? it.trackIds.map(String)
-              : it.trackId || it.id
+              : it?.trackId || it?.id
               ? [String(it.trackId || it.id)]
               : []
           )
