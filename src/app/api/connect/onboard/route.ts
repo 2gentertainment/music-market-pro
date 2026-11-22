@@ -118,11 +118,13 @@ export async function POST(req: Request) {
       }
     }
 
-    // Reuse existing stripe_account_id if already created so retries never orphan accounts
-    let stripeAccountId =
+    // Only reuse an already-verified stripe_account_id on the profile; otherwise hold pending ID until verified
+    const verifiedStripeAccountId =
       profileData?.stripe_account_id || existingProfile?.stripe_account_id || null;
 
-    if (!stripeAccountId) {
+    let onboardingAccountId = verifiedStripeAccountId;
+
+    if (!onboardingAccountId) {
       const account = await stripe.v2.core.accounts.create({
         ...(resolvedEmail ? { contact_email: resolvedEmail } : {}),
         display_name: handleName || activeHandle,
@@ -155,40 +157,28 @@ export async function POST(req: Request) {
           supabaseUserId: profileData?.id || targetId || 'temp_user_id',
           handle: activeHandle,
           displayName: handleName || '',
+          payoutVerified: 'false',
         },
       });
 
-      stripeAccountId = account.id;
-
-      if (profileData?.id) {
-        const { error: stripeSaveError } = await supabase
-          .from('profiles')
-          .update({
-            stripe_account_id: stripeAccountId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', profileData.id);
-
-        if (stripeSaveError) {
-          console.error('Failed saving stripe_account_id to profile:', stripeSaveError.message);
-        }
-      }
+      onboardingAccountId = account.id;
     }
 
     const accountLink = await stripe.v2.core.accountLinks.create({
-      account: stripeAccountId,
+      account: onboardingAccountId,
       use_case: {
         type: 'account_onboarding',
         account_onboarding: {
-          refresh_url: `${baseUrl}/dashboard?connect=refresh&account_id=${stripeAccountId}&handle=${activeHandle}`,
-          return_url: `${baseUrl}/dashboard?connect=success&account_id=${stripeAccountId}&handle=${activeHandle}`,
+          refresh_url: `${baseUrl}/dashboard?connect=refresh&pending_account=${onboardingAccountId}&handle=${activeHandle}`,
+          return_url: `${baseUrl}/dashboard?connect=verify&pending_account=${onboardingAccountId}&handle=${activeHandle}`,
         },
       },
     });
 
     return NextResponse.json({
       url: accountLink.url,
-      accountId: stripeAccountId,
+      pendingAccountId: verifiedStripeAccountId ? undefined : onboardingAccountId,
+      accountId: verifiedStripeAccountId || undefined,
       profileUrl: artistProfileUrl,
     });
   } catch (err: any) {
