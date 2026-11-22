@@ -216,7 +216,7 @@ export async function POST(req: Request) {
               : []
           )
         ),
-        itemType: primaryItem?.itemType || 'track',
+        itemType: primaryItem?.itemType === 'album' ? 'album' : 'single',
         albumName: primaryItem?.albumName || '',
       },
       success_url: `${appUrl}/vault?success=true`,
