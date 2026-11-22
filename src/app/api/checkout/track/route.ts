@@ -206,7 +206,16 @@ export async function POST(req: Request) {
       line_items: lineItems,
       metadata: {
         artistHandle: artistHandle || '',
-        trackId: primaryItem?.id ? String(primaryItem.id) : '',
+        trackId: primaryItem?.trackId ? String(primaryItem.trackId) : primaryItem?.id ? String(primaryItem.id) : '',
+        trackIds: JSON.stringify(
+          items.flatMap((it: any) =>
+            Array.isArray(it.trackIds) && it.trackIds.length > 0
+              ? it.trackIds.map(String)
+              : it.trackId || it.id
+              ? [String(it.trackId || it.id)]
+              : []
+          )
+        ),
         itemType: primaryItem?.itemType || 'track',
         albumName: primaryItem?.albumName || '',
       },
