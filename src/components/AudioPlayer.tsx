@@ -12,19 +12,18 @@ interface AudioPlayerProps {
 const FALLBACK_COVER_ART =
   'https://27593217-482041110881488807.preview.editmysite.com/uploads/2/7/5/9/27593217/box-logo_orig.jpg';
 
-
 const platformColors: Record<string, string> = {
   'Apple Music': '#fa233b',
   'Spotify': '#1db954',
   'Tidal': '#00ffff',
   'YouTube': '#ff0000',
-  'Pandora': '#0095ff'
+  'Pandora': '#0095ff',
 };
 
 export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free' }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
 
-    const isDevSuiteEnabled =
+  const isDevSuiteEnabled =
     process.env.NODE_ENV === 'development' &&
     process.env.NEXT_PUBLIC_ENABLE_DEV_SUITE === 'true';
 
@@ -42,7 +41,6 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
         setCurrentTier(tier);
       }
     };
-
 
     checkDevTier();
 
@@ -70,7 +68,10 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
   const [shufflePool, setShufflePool] = useState<number[]>([]);
 
   // Rotating Stream Button State
-  const [streamDisplayHtml, setStreamDisplayHtml] = useState<{ text: string; color: string }>({ text: 'STREAM NOW', color: '#ffffff' });
+  const [streamDisplayHtml, setStreamDisplayHtml] = useState<{ text: string; color: string }>({
+    text: 'STREAM NOW',
+    color: '#ffffff',
+  });
 
   // Album / Project View State
   const [viewMode, setViewMode] = useState<'tracks' | 'albums'>('tracks');
@@ -80,7 +81,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
   const [buyModalOpen, setBuyModalOpen] = useState(false);
   const [trackToBuy, setTrackToBuy] = useState<any>(null);
 
-    const currentTrack = activePlaylist[currentIndex] || null;
+  const currentTrack = activePlaylist[currentIndex] || null;
   const isPlayingRef = useRef<boolean>(false);
   const currentTrackRef = useRef<any>(null);
   const currentIndexRef = useRef<number>(0);
@@ -88,6 +89,10 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
   const isShuffledRef = useRef<boolean>(false);
   const isRepeatedRef = useRef<boolean>(false);
   const shufflePoolRef = useRef<number[]>([]);
+  const playlistSignatureRef = useRef<string>('');
+  const errorRetryCountRef = useRef<number>(0);
+  const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastLoggedPlayTrackIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
@@ -115,8 +120,22 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
   }, [shufflePool]);
 
   useEffect(() => {
+    return () => {
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (initialTracks && initialTracks.length > 0) {
-      processTracks(initialTracks);
+      const nextSignature = `${artistHandle || ''}::${initialTracks
+        .map((t) => `${t.id}:${t.track_order ?? ''}:${t.audio_file_path ?? ''}`)
+        .join('|')}`;
+      if (nextSignature !== playlistSignatureRef.current) {
+        playlistSignatureRef.current = nextSignature;
+        processTracks(initialTracks);
+      }
     } else {
       initPlayer();
     }
@@ -129,17 +148,31 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
           if (audioRef.current.readyState === 0) {
             audioRef.current.load();
           }
-          safePlay();
+          safePlay(false);
         } else if (!isPlayingRef.current && !audioRef.current.paused) {
           setIsPlaying(true);
         }
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
+    const handleOnline = () => {
+      if (isPlayingRef.current && audioRef.current && currentTrackRef.current?.audio_file_path) {
+        const savedTime = audioRef.current.currentTime;
+        audioRef.current.load();
+        if (savedTime > 0) {
+          audioRef.current.currentTime = savedTime;
+        }
+        safePlay(false);
+      }
+    };
 
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []);
 
   useEffect(() => {
     if (!currentTrack) {
@@ -148,18 +181,26 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     }
 
     const availablePlatforms: { name: string; color: string }[] = [];
-    if (currentTrack.apple_music_url?.trim()) availablePlatforms.push({ name: 'Apple Music', color: platformColors['Apple Music'] });
-    if (currentTrack.spotify_url?.trim()) availablePlatforms.push({ name: 'Spotify', color: platformColors['Spotify'] });
-    if (currentTrack.tidal_url?.trim()) availablePlatforms.push({ name: 'Tidal', color: platformColors['Tidal'] });
-    if (currentTrack.youtube_url?.trim()) availablePlatforms.push({ name: 'YouTube', color: platformColors['YouTube'] });
-    if (currentTrack.pandora_url?.trim()) availablePlatforms.push({ name: 'Pandora', color: platformColors['Pandora'] });
+    if (currentTrack.apple_music_url?.trim())
+      availablePlatforms.push({ name: 'Apple Music', color: platformColors['Apple Music'] });
+    if (currentTrack.spotify_url?.trim())
+      availablePlatforms.push({ name: 'Spotify', color: platformColors['Spotify'] });
+    if (currentTrack.tidal_url?.trim())
+      availablePlatforms.push({ name: 'Tidal', color: platformColors['Tidal'] });
+    if (currentTrack.youtube_url?.trim())
+      availablePlatforms.push({ name: 'YouTube', color: platformColors['YouTube'] });
+    if (currentTrack.pandora_url?.trim())
+      availablePlatforms.push({ name: 'Pandora', color: platformColors['Pandora'] });
 
     if (availablePlatforms.length === 0) {
       setStreamDisplayHtml({ text: 'STREAM NOW', color: '#ffffff' });
       return;
     }
 
-    const slides = [{ text: 'STREAM NOW', color: '#ffffff' }, ...availablePlatforms.map(p => ({ text: p.name, color: p.color }))];
+    const slides = [
+      { text: 'STREAM NOW', color: '#ffffff' },
+      ...availablePlatforms.map((p) => ({ text: p.name, color: p.color })),
+    ];
     let slideIndex = 0;
     setStreamDisplayHtml(slides[0]);
 
@@ -177,7 +218,28 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     }
   }, [isShuffled, activePlaylist]);
 
-    function buildShuffledPool(currentIdx: number, totalTracks: number): number[] {
+  function clearStallTimer() {
+    if (stallTimerRef.current) {
+      clearTimeout(stallTimerRef.current);
+      stallTimerRef.current = null;
+    }
+  }
+
+  function armStallWatchdog() {
+    clearStallTimer();
+    stallTimerRef.current = setTimeout(() => {
+      const el = audioRef.current;
+      if (!el || !isPlayingRef.current || !currentTrackRef.current?.audio_file_path) return;
+      if (el.paused && document.visibilityState === 'visible') {
+        if (el.readyState === 0) {
+          el.load();
+        }
+        el.play().catch(() => {});
+      }
+    }, 3500);
+  }
+
+  function buildShuffledPool(currentIdx: number, totalTracks: number): number[] {
     const pool: number[] = [];
     for (let i = 0; i < totalTracks; i++) {
       if (i !== currentIdx) {
@@ -197,24 +259,22 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     setShufflePool(pool);
   }
 
-  function safePlay(autoPlayAfterLoad = false) {
+  function safePlay(ensureSourceLoaded = false) {
     const el = audioRef.current;
-    if (!el) return;
+    const track = currentTrackRef.current;
+    if (!el || !track?.audio_file_path) return;
 
-    if (autoPlayAfterLoad && currentTrackRef.current?.audio_file_path) {
-      const targetSrc = currentTrackRef.current.audio_file_path;
-      if (el.src !== targetSrc) {
-        el.src = targetSrc;
-      }
-      if (el.readyState === 0) {
-        el.load();
-      }
+    if (ensureSourceLoaded && (!el.currentSrc || el.readyState === 0)) {
+      el.src = track.audio_file_path;
+      el.load();
     }
 
     const playPromise = el.play();
     if (playPromise !== undefined) {
       playPromise
         .then(() => {
+          errorRetryCountRef.current = 0;
+          clearStallTimer();
           setIsPlaying(true);
         })
         .catch((err) => {
@@ -229,9 +289,8 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     }
   }
 
-
   function processTracks(data: any[]) {
-    const formattedTracks = data.map(track => {
+    const formattedTracks = data.map((track) => {
       let audioUrl = track.audio_file_path;
       if (audioUrl && !audioUrl.startsWith('http')) {
         audioUrl = _supabase.storage.from('v2-audio-vault').getPublicUrl(audioUrl).data.publicUrl;
@@ -239,33 +298,33 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
       let artUrl = track.artwork_url;
       if (track.artwork_file_path && !track.artwork_file_path.startsWith('http')) {
-        artUrl = _supabase.storage.from('v2-cover-art').getPublicUrl(track.artwork_file_path).data.publicUrl;
+        artUrl = _supabase.storage
+          .from('v2-cover-art')
+          .getPublicUrl(track.artwork_file_path).data.publicUrl;
       }
 
       return {
         ...track,
         audio_file_path: audioUrl,
-        artwork_url: artUrl
+        artwork_url: artUrl,
       };
     });
 
-                let filteredData = formattedTracks.filter((track) => !track.deleted_at);
+    let filteredData = formattedTracks.filter((track) => !track.deleted_at);
 
     if (artistHandle && (!initialTracks || initialTracks.length === 0)) {
-
       const cleanSlug = artistHandle.toLowerCase().trim();
-      filteredData = formattedTracks.filter(track => {
+      filteredData = formattedTracks.filter((track) => {
         const textHandle = track.artist_handle ? track.artist_handle.toLowerCase().trim() : '';
         return textHandle === cleanSlug;
       });
     }
 
-
     const urlParams = new URLSearchParams(window.location.search);
     const targetTrackParam = urlParams.get('track');
 
     if (targetTrackParam) {
-      const trackIndex = filteredData.findIndex(t => String(t.id) === String(targetTrackParam));
+      const trackIndex = filteredData.findIndex((t) => String(t.id) === String(targetTrackParam));
       if (trackIndex !== -1) {
         const sharedTrack = filteredData.splice(trackIndex, 1)[0];
         filteredData.unshift(sharedTrack);
@@ -275,7 +334,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     setMasterPlaylist(filteredData);
     setActivePlaylist(filteredData);
     if (filteredData.length > 0) {
-      loadTrack(filteredData[0], 0);
+      loadTrack(filteredData[0], 0, false);
       if (isShuffled) resetShufflePool(0, filteredData.length);
     } else {
       setCurrentIndex(0);
@@ -284,7 +343,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     }
   }
 
-        async function initPlayer() {
+  async function initPlayer() {
     let query = _supabase
       .from('tracks_pro')
       .select('*')
@@ -297,13 +356,20 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
     const { data, error } = await query;
 
-       if (!error && data) {
+    if (!error && data) {
+      const nextSignature = `${artistHandle || ''}::${data
+        .map((t) => `${t.id}:${t.track_order ?? ''}:${t.audio_file_path ?? ''}`)
+        .join('|')}`;
+      playlistSignatureRef.current = nextSignature;
       processTracks(data);
     }
   }
 
   function loadTrack(track: any, index: number, shouldPlay = false) {
     if (!track) return;
+    clearStallTimer();
+    errorRetryCountRef.current = 0;
+    lastLoggedPlayTrackIdRef.current = null;
     currentTrackRef.current = track;
     currentIndexRef.current = index;
     setCurrentIndex(index);
@@ -316,7 +382,9 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
       audioRef.current.src = track.audio_file_path;
       audioRef.current.load();
       if (shouldPlay) {
-        safePlay(true);
+        safePlay(false);
+      } else {
+        setIsPlaying(false);
       }
     }
   }
@@ -324,6 +392,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
   function togglePlay() {
     if (!audioRef.current || !currentTrackRef.current?.audio_file_path) return;
     if (isPlayingRef.current) {
+      clearStallTimer();
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
@@ -333,6 +402,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
   function handleTimeUpdate() {
     if (audioRef.current) {
+      clearStallTimer();
       setCurrentTime(audioRef.current.currentTime);
       if (!isNaN(audioRef.current.duration) && isFinite(audioRef.current.duration)) {
         setDuration(audioRef.current.duration);
@@ -395,7 +465,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     } else {
       if (audioRef.current && audioRef.current.currentTime > 3) {
         audioRef.current.currentTime = 0;
-        if (isPlayingRef.current) safePlay();
+        if (isPlayingRef.current) safePlay(false);
       } else {
         prevTrack();
       }
@@ -404,15 +474,16 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
   }
 
   function handleTrackEnded() {
+    clearStallTimer();
     if (isRepeatedRef.current && audioRef.current) {
       audioRef.current.currentTime = 0;
-      safePlay();
+      safePlay(false);
     } else {
       nextTrack(true);
     }
   }
 
-    function getVisitorId(): string {
+  function getVisitorId(): string {
     if (typeof window === 'undefined') return 'server';
     let vid = localStorage.getItem('mm_visitor_id');
     if (!vid) {
@@ -450,21 +521,31 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
   function handleAudioError() {
     const el = audioRef.current;
-    if (!el || !currentTrackRef.current?.audio_file_path) return;
+    const track = currentTrackRef.current;
+    if (!el || !track?.audio_file_path) return;
 
-    if (el.src !== currentTrackRef.current.audio_file_path) {
-      el.src = currentTrackRef.current.audio_file_path;
-      el.load();
-      if (isPlayingRef.current) {
-        safePlay(true);
-      }
-    } else if (document.visibilityState === 'visible' && isPlayingRef.current) {
+    if (errorRetryCountRef.current < 2 && isPlayingRef.current) {
+      errorRetryCountRef.current += 1;
+      const resumeTime = el.currentTime || 0;
+      setTimeout(() => {
+        if (!audioRef.current || !currentTrackRef.current?.audio_file_path || !isPlayingRef.current) {
+          return;
+        }
+        audioRef.current.src = currentTrackRef.current.audio_file_path;
+        audioRef.current.load();
+        if (resumeTime > 0) {
+          audioRef.current.currentTime = resumeTime;
+        }
+        audioRef.current.play().catch(() => {});
+      }, 600);
+      return;
+    }
+
+    clearStallTimer();
+    if (document.visibilityState === 'visible' && isPlayingRef.current) {
       setIsPlaying(false);
     }
   }
-
-
-
 
   function formatTime(secs: number) {
     if (isNaN(secs)) return '0:00';
@@ -477,9 +558,11 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     if (e) e.preventDefault();
     if (!subscriberEmail.trim() || submittingFan) return;
 
-        setSubmittingFan(true);
+    setSubmittingFan(true);
     try {
-      const activeHandle = (artistHandle || currentTrack?.artist_handle || '').trim().toLowerCase();
+      const activeHandle = (artistHandle || currentTrack?.artist_handle || '')
+        .trim()
+        .toLowerCase();
       if (!activeHandle) {
         alert('Unable to determine which artist store this fan signup belongs to.');
         setSubmittingFan(false);
@@ -497,7 +580,6 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
           sourceTrackTitle: currentTrack?.title || null,
         }),
       });
-
 
       const data = await res.json();
       if (!res.ok) {
@@ -528,7 +610,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     setTrackToBuy(track);
     setSubscribeBoxOpen(false);
 
-        if (track.album_name) {
+    if (track.album_name) {
       setBuyModalOpen(true);
     } else {
       executeCheckout({
@@ -539,15 +621,21 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
         title: track.title,
       });
     }
-
   }
 
-  async function executeCheckout(payload: { itemType: 'single' | 'album'; trackId?: string; albumName?: string; artistHandle?: string; price: number | string; title?: string }) {
+  async function executeCheckout(payload: {
+    itemType: 'single' | 'album';
+    trackId?: string;
+    albumName?: string;
+    artistHandle?: string;
+    price: number | string;
+    title?: string;
+  }) {
     try {
       const response = await fetch('/api/checkout/track', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: [payload] })
+        body: JSON.stringify({ items: [payload] }),
       });
       const responseText = await response.text();
       let session;
@@ -566,7 +654,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     }
   }
 
-    const trackIncludesAlbum = (track: any, albumName: string) =>
+  const trackIncludesAlbum = (track: any, albumName: string) =>
     Boolean(track.album_name) &&
     String(track.album_name)
       .split(',')
@@ -575,7 +663,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
   const uniqueAlbums = Array.from(
     new Set(
-      masterPlaylist.flatMap(t =>
+      masterPlaylist.flatMap((t) =>
         t.album_name
           ? String(t.album_name)
               .split(',')
@@ -585,30 +673,31 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
       )
     )
   ).sort((a, b) => {
-    const indexA = masterPlaylist.find(t => trackIncludesAlbum(t, a))?.album_index ?? 9999;
-    const indexB = masterPlaylist.find(t => trackIncludesAlbum(t, b))?.album_index ?? 9999;
+    const indexA = masterPlaylist.find((t) => trackIncludesAlbum(t, a))?.album_index ?? 9999;
+    const indexB = masterPlaylist.find((t) => trackIncludesAlbum(t, b))?.album_index ?? 9999;
     return indexA - indexB;
   });
-
 
   return (
     <div className="player-card bg-[#121212] text-white w-full max-w-[480px] h-[100dvh] p-4 flex flex-col justify-between overflow-hidden box-border mx-auto relative touch-manipulation">
       <div className="player-header text-center text-[11px] tracking-[2px] text-[#666] uppercase pt-[2px]">
-  {(artistHandle || currentTrack?.artist_handle)
-    ? String(artistHandle || currentTrack?.artist_handle)
-        .replace(/[-_]+/g, ' ')
-        .trim()
-        .toUpperCase()
-    : 'Music Market'}
-</div>
-
+        {artistHandle || currentTrack?.artist_handle
+          ? String(artistHandle || currentTrack?.artist_handle)
+              .replace(/[-_]+/g, ' ')
+              .trim()
+              .toUpperCase()
+          : 'Music Market'}
+      </div>
 
       {/* Fixed-Height Search Bar Wrapper to prevent vertical shifting */}
       <div className={`search-wrapper relative w-full my-[6px] h-[36px] flex-shrink-0 ${searchActive ? 'active' : ''}`}>
         {!searchActive ? (
           <div
             className="search-collapsed-btn absolute left-0 top-0 w-[36px] h-[36px] bg-[#1a1a1a] border border-[#333] rounded-[8px] flex items-center justify-center cursor-pointer hover:border-[#ff8c00]"
-            onClick={() => { setSearchActive(true); setSubscribeBoxOpen(false); }}
+            onClick={() => {
+              setSearchActive(true);
+              setSubscribeBoxOpen(false);
+            }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff8c00" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
@@ -625,14 +714,19 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
               onChange={(e) => {
                 const q = e.target.value.toLowerCase();
                 setSearchQuery(q);
-                setSearchResults(masterPlaylist.filter(t =>
-                  t.title.toLowerCase().includes(q) ||
-                  t.artist_handle?.toLowerCase().includes(q) ||
-                  t.genre?.toLowerCase().includes(q)
-                ));
+                setSearchResults(
+                  masterPlaylist.filter(
+                    (t) =>
+                      t.title.toLowerCase().includes(q) ||
+                      t.artist_handle?.toLowerCase().includes(q) ||
+                      t.genre?.toLowerCase().includes(q)
+                  )
+                );
               }}
               autoFocus
-              onBlur={() => { setTimeout(() => setSearchActive(false), 200); }}
+              onBlur={() => {
+                setTimeout(() => setSearchActive(false), 200);
+              }}
             />
           </div>
         )}
@@ -644,11 +738,15 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
                 key={track.id}
                 className="search-result-item flex items-center gap-[10px] p-[8px_12px] border-b border-[#1f1f1f] cursor-pointer hover:bg-[#262626]"
                 onClick={() => {
-                  loadTrack(track, masterPlaylist.findIndex(t => t.id === track.id));
+                  loadTrack(
+                    track,
+                    masterPlaylist.findIndex((t) => t.id === track.id),
+                    true
+                  );
                   setSearchActive(false);
                 }}
               >
-                                <img
+                <img
                   src={track.artwork_url || FALLBACK_COVER_ART}
                   className="w-[32px] h-[32px] object-cover rounded-[4px] bg-[#222]"
                   alt=""
@@ -663,10 +761,9 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
                       </span>
                     )}
                   </div>
-                                    <span className="text-[11px] text-[#ff8c00] truncate">
+                  <span className="text-[11px] text-[#ff8c00] truncate">
                     @{artistHandle || track.artist_handle}
                   </span>
-
                 </div>
               </div>
             ))}
@@ -674,7 +771,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
         )}
       </div>
 
-            {/* Artwork */}
+      {/* Artwork */}
       <div className="artwork-container w-[150px] h-[150px] mx-auto rounded-[12px] overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.6)] flex items-center justify-center bg-[#1a1a1a] flex-shrink-0">
         <img
           src={currentTrack?.artwork_url || FALLBACK_COVER_ART}
@@ -683,13 +780,18 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
         />
       </div>
 
-
       {/* Track Info & Genre Tag */}
       <div className="track-info text-center mb-[4px] flex-shrink-0">
-        <h3 className="text-[15px] font-bold text-white truncate m-[0_0_2px_0]">{currentTrack?.title || 'No tracks uploaded yet'}</h3>
+        <h3 className="text-[15px] font-bold text-white truncate m-[0_0_2px_0]">
+          {currentTrack?.title || 'No tracks uploaded yet'}
+        </h3>
         <div className="flex items-center justify-center gap-2 m-0">
-                    <p className="text-[11px] text-[#ff8c00] font-medium m-0">
-            {artistHandle ? `@${artistHandle}` : (currentTrack?.artist_handle ? `@${currentTrack.artist_handle}` : 'Music Market')}
+          <p className="text-[11px] text-[#ff8c00] font-medium m-0">
+            {artistHandle
+              ? `@${artistHandle}`
+              : currentTrack?.artist_handle
+              ? `@${currentTrack.artist_handle}`
+              : 'Music Market'}
           </p>
 
           {currentTrack?.genre && (
@@ -721,15 +823,32 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
       <div className="subscribe-container flex-shrink-0">
         {!subscribeBoxOpen ? (
           <div className="action-section flex gap-[10px] mb-[6px]">
-            <button className="main-sub-btn bg-[#ff8c00] text-black font-bold p-[8px] rounded-[10px] flex-1 text-[12px] hover:bg-[#e07b00]" onClick={() => setSubscribeBoxOpen(true)}>
+            <button
+              className="main-sub-btn bg-[#ff8c00] text-black font-bold p-[8px] rounded-[10px] flex-1 text-[12px] hover:bg-[#e07b00]"
+              onClick={() => setSubscribeBoxOpen(true)}
+            >
               BECOME A FAN
             </button>
 
-            {currentTier !== 'free' && currentTrack?.id && (currentTrack.apple_music_url || currentTrack.spotify_url || currentTrack.tidal_url || currentTrack.youtube_url || currentTrack.pandora_url) && (
-              <button className="stream-trigger-btn bg-[#2a2a2a] text-white border border-[#444] p-[8px_12px] font-bold rounded-[10px] flex-1 text-[12px] hover:border-[#ff8c00]" onClick={() => { setStreamModalOpen(true); setSubscribeBoxOpen(false); }}>
-                <span style={{ color: streamDisplayHtml.color, transition: 'color 0.3s ease' }}>{streamDisplayHtml.text}</span>
-              </button>
-            )}
+            {currentTier !== 'free' &&
+              currentTrack?.id &&
+              (currentTrack.apple_music_url ||
+                currentTrack.spotify_url ||
+                currentTrack.tidal_url ||
+                currentTrack.youtube_url ||
+                currentTrack.pandora_url) && (
+                <button
+                  className="stream-trigger-btn bg-[#2a2a2a] text-white border border-[#444] p-[8px_12px] font-bold rounded-[10px] flex-1 text-[12px] hover:border-[#ff8c00]"
+                  onClick={() => {
+                    setStreamModalOpen(true);
+                    setSubscribeBoxOpen(false);
+                  }}
+                >
+                  <span style={{ color: streamDisplayHtml.color, transition: 'color 0.3s ease' }}>
+                    {streamDisplayHtml.text}
+                  </span>
+                </button>
+              )}
 
             {currentTrack?.price && Number(currentTrack.price) > 0 && (
               <button
@@ -774,14 +893,22 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
         {currentTier !== 'free' && uniqueAlbums.length > 0 && (
           <div className="flex items-center gap-2 mb-2 pb-1 border-b border-[#222]">
             <button
-              onClick={() => { setViewMode('tracks'); setActivePlaylist(masterPlaylist); setSelectedAlbum(null); }}
-              className={`text-[10px] font-bold px-2.5 py-1 rounded-md cursor-pointer transition-all ${viewMode === 'tracks' ? 'bg-[#ff8c00] text-black' : 'bg-[#202020] text-[#888] hover:text-white'}`}
+              onClick={() => {
+                setViewMode('tracks');
+                setActivePlaylist(masterPlaylist);
+                setSelectedAlbum(null);
+              }}
+              className={`text-[10px] font-bold px-2.5 py-1 rounded-md cursor-pointer transition-all ${
+                viewMode === 'tracks' ? 'bg-[#ff8c00] text-black' : 'bg-[#202020] text-[#888] hover:text-white'
+              }`}
             >
               All Tracks
             </button>
             <button
               onClick={() => setViewMode('albums')}
-              className={`text-[10px] font-bold px-2.5 py-1 rounded-md cursor-pointer transition-all ${viewMode === 'albums' ? 'bg-[#ff8c00] text-black' : 'bg-[#202020] text-[#888] hover:text-white'}`}
+              className={`text-[10px] font-bold px-2.5 py-1 rounded-md cursor-pointer transition-all ${
+                viewMode === 'albums' ? 'bg-[#ff8c00] text-black' : 'bg-[#202020] text-[#888] hover:text-white'
+              }`}
             >
               Albums / Projects ({uniqueAlbums.length})
             </button>
@@ -793,12 +920,11 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
         <div className="inline-tracks-list flex flex-col gap-[6px] overflow-y-auto flex-1">
           {currentTier !== 'free' && viewMode === 'albums' && !selectedAlbum ? (
-                                   <div className="space-y-2">
+            <div className="space-y-2">
               {uniqueAlbums.map((albumName, idx) => {
-                const albumTracks = masterPlaylist.filter(t => trackIncludesAlbum(t, albumName));
+                const albumTracks = masterPlaylist.filter((t) => trackIncludesAlbum(t, albumName));
                 const albumThumb =
-                  albumTracks.find(t => t.artwork_url)?.artwork_url || FALLBACK_COVER_ART;
-
+                  albumTracks.find((t) => t.artwork_url)?.artwork_url || FALLBACK_COVER_ART;
 
                 return (
                   <div
@@ -812,9 +938,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
                       setSelectedAlbum(albumName);
                       setViewMode('tracks');
                       if (sortedAlbumTracks.length > 0) {
-                        loadTrack(sortedAlbumTracks[0], 0);
-                        setIsPlaying(true);
-                        safePlay();
+                        loadTrack(sortedAlbumTracks[0], 0, true);
                       }
                     }}
                   >
@@ -826,28 +950,35 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
                       />
                       <div className="min-w-0">
                         <div className="text-xs font-bold text-white truncate">{albumName}</div>
-                        <div className="text-[10px] text-[#888]">{albumTracks.length} Track{albumTracks.length === 1 ? '' : 's'}</div>
+                        <div className="text-[10px] text-[#888]">
+                          {albumTracks.length} Track{albumTracks.length === 1 ? '' : 's'}
+                        </div>
                       </div>
                     </div>
-                    <span className="text-[10px] text-[#ff8c00] font-bold flex-shrink-0">Play Project &rarr;</span>
+                    <span className="text-[10px] text-[#ff8c00] font-bold flex-shrink-0">
+                      Play Project &rarr;
+                    </span>
                   </div>
                 );
               })}
             </div>
-
           ) : activePlaylist.length === 0 ? (
             <div className="text-center text-[#666] text-[12px] py-6">
-              {artistHandle ? "No tracks added to this store yet." : "No tracks found."}
+              {artistHandle ? 'No tracks added to this store yet.' : 'No tracks found.'}
             </div>
           ) : (
             activePlaylist.map((track, idx) => (
               <div
                 key={track.id}
-                className={`playlist-item bg-[#202020] p-[8px_12px] rounded-[8px] flex items-center justify-between gap-[10px] cursor-pointer border ${idx === currentIndex ? 'border-[#ff8c00] bg-[#2a1f12]' : 'border-[#2e2e2e]'}`}
-                onClick={() => { loadTrack(track, idx); setIsPlaying(true); safePlay(); }}
+                className={`playlist-item bg-[#202020] p-[8px_12px] rounded-[8px] flex items-center justify-between gap-[10px] cursor-pointer border ${
+                  idx === currentIndex ? 'border-[#ff8c00] bg-[#2a1f12]' : 'border-[#2e2e2e]'
+                }`}
+                onClick={() => {
+                  loadTrack(track, idx, true);
+                }}
               >
                 <div className="flex items-center gap-[10px] overflow-hidden flex-1">
-                                    <img
+                  <img
                     src={track.artwork_url || FALLBACK_COVER_ART}
                     className="w-[32px] h-[32px] rounded-[5px] object-cover flex-shrink-0"
                     alt=""
@@ -855,17 +986,18 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
                   <div className="playlist-item-info flex-1 overflow-hidden">
                     <div className="flex items-center gap-2">
-                      <div className="playlist-item-title text-[12px] font-bold text-white truncate">{track.title}</div>
+                      <div className="playlist-item-title text-[12px] font-bold text-white truncate">
+                        {track.title}
+                      </div>
                       {track.genre && (
                         <span className="text-[9px] bg-[#ff8c00]/15 text-[#ff8c00] font-bold px-1.5 py-0.2 rounded border border-[#ff8c00]/30 flex-shrink-0">
                           {track.genre}
                         </span>
                       )}
                     </div>
-                                        <div className="playlist-item-artist text-[11px] text-[#ff8c00] truncate">
+                    <div className="playlist-item-artist text-[11px] text-[#ff8c00] truncate">
                       @{artistHandle || track.artist_handle}
                     </div>
-
                   </div>
                 </div>
 
@@ -885,35 +1017,90 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
       {/* Player Controls */}
       <div className="controls flex justify-between items-center pb-[2px] flex-shrink-0">
         <button
-          className={`w-[38px] h-[38px] rounded-full flex items-center justify-center transition-all ${isShuffled ? 'text-[#ff8c00] bg-[#2a1f12] border border-[#ff8c00]' : 'bg-[#1e1e1e] text-[#aaa] hover:bg-[#2e2e2e] hover:text-white'}`}
-          onClick={() => { setIsShuffled(!isShuffled); setSubscribeBoxOpen(false); }}
+          className={`w-[38px] h-[38px] rounded-full flex items-center justify-center transition-all ${
+            isShuffled
+              ? 'text-[#ff8c00] bg-[#2a1f12] border border-[#ff8c00]'
+              : 'bg-[#1e1e1e] text-[#aaa] hover:bg-[#2e2e2e] hover:text-white'
+          }`}
+          onClick={() => {
+            setIsShuffled(!isShuffled);
+            setSubscribeBoxOpen(false);
+          }}
           title="Shuffle"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
-        </button>
-
-        <button className="w-[38px] h-[38px] bg-[#1e1e1e] text-[#aaa] rounded-full flex items-center justify-center hover:bg-[#2e2e2e] hover:text-white" onClick={handlePreviousClick} title="Previous">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg>
-        </button>
-
-        <button id="play-pause-btn" className="w-[46px] h-[46px] bg-[#ff8c00] text-black rounded-full flex items-center justify-center shadow-lg" onClick={() => { togglePlay(); setSubscribeBoxOpen(false); }} title="Play/Pause">
-          {!isPlaying ? (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
-          )}
-        </button>
-
-                <button className="w-[38px] h-[38px] bg-[#1e1e1e] text-[#aaa] rounded-full flex items-center justify-center hover:bg-[#2e2e2e] hover:text-white" onClick={() => { nextTrack(); setSubscribeBoxOpen(false); }} title="Next">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="16 3 21 3 21 8"></polyline>
+            <line x1="4" y1="20" x2="21" y2="3"></line>
+            <polyline points="21 16 21 21 16 21"></polyline>
+            <line x1="15" y1="15" x2="21" y2="21"></line>
+            <line x1="4" y1="4" x2="9" y2="9"></line>
+          </svg>
         </button>
 
         <button
-          className={`w-[38px] h-[38px] rounded-full flex items-center justify-center transition-all ${isRepeated ? 'text-[#ff8c00] bg-[#2a1f12] border border-[#ff8c00]' : 'bg-[#1e1e1e] text-[#aaa] hover:bg-[#2e2e2e] hover:text-white'}`}
-          onClick={() => { setIsRepeated(!isRepeated); setSubscribeBoxOpen(false); }}
+          className="w-[38px] h-[38px] bg-[#1e1e1e] text-[#aaa] rounded-full flex items-center justify-center hover:bg-[#2e2e2e] hover:text-white"
+          onClick={handlePreviousClick}
+          title="Previous"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="19 20 9 12 19 4 19 20"></polygon>
+            <line x1="5" y1="19" x2="5" y2="5"></line>
+          </svg>
+        </button>
+
+        <button
+          id="play-pause-btn"
+          className="w-[46px] h-[46px] bg-[#ff8c00] text-black rounded-full flex items-center justify-center shadow-lg"
+          onClick={() => {
+            togglePlay();
+            setSubscribeBoxOpen(false);
+          }}
+          title="Play/Pause"
+        >
+          {!isPlaying ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+              <rect x="6" y="4" width="4" height="16"></rect>
+              <rect x="14" y="4" width="4" height="16"></rect>
+            </svg>
+          )}
+        </button>
+
+        <button
+          className="w-[38px] h-[38px] bg-[#1e1e1e] text-[#aaa] rounded-full flex items-center justify-center hover:bg-[#2e2e2e] hover:text-white"
+          onClick={() => {
+            nextTrack();
+            setSubscribeBoxOpen(false);
+          }}
+          title="Next"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="5 4 15 12 5 20 5 4"></polygon>
+            <line x1="19" y1="5" x2="19" y2="19"></line>
+          </svg>
+        </button>
+
+        <button
+          className={`w-[38px] h-[38px] rounded-full flex items-center justify-center transition-all ${
+            isRepeated
+              ? 'text-[#ff8c00] bg-[#2a1f12] border border-[#ff8c00]'
+              : 'bg-[#1e1e1e] text-[#aaa] hover:bg-[#2e2e2e] hover:text-white'
+          }`}
+          onClick={() => {
+            setIsRepeated(!isRepeated);
+            setSubscribeBoxOpen(false);
+          }}
           title="Repeat"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="17 1 21 5 17 9"></polyline>
+            <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+            <polyline points="7 23 3 19 7 15"></polyline>
+            <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+          </svg>
         </button>
       </div>
 
@@ -943,13 +1130,24 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
       {/* Stream Links Modal Drawer */}
       {streamModalOpen && (
-        <div className="fixed inset-0 bg-black/80 flex justify-center items-end z-50 touch-manipulation" onClick={() => setStreamModalOpen(false)}>
-          <div className="bg-[#1a1a1a] w-full max-w-[480px] rounded-t-[20px] p-5 border-t border-[#333] text-center touch-manipulation" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/80 flex justify-center items-end z-50 touch-manipulation"
+          onClick={() => setStreamModalOpen(false)}
+        >
+          <div
+            className="bg-[#1a1a1a] w-full max-w-[480px] rounded-t-[20px] p-5 border-t border-[#333] text-center touch-manipulation"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center mb-4">
               <h4 className="m-0 text-[15px] text-white font-bold tracking-wider">LISTEN ON</h4>
-              <button className="bg-transparent border-none text-[#aaa] text-xl cursor-pointer" onClick={() => setStreamModalOpen(false)}>&times;</button>
+              <button
+                className="bg-transparent border-none text-[#aaa] text-xl cursor-pointer"
+                onClick={() => setStreamModalOpen(false)}
+              >
+                &times;
+              </button>
             </div>
-                        <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
               {[
                 { label: 'Spotify', url: currentTrack?.spotify_url },
                 { label: 'Apple Music', url: currentTrack?.apple_music_url },
@@ -975,7 +1173,6 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
                   </a>
                 ))}
             </div>
-
           </div>
         </div>
       )}
@@ -997,7 +1194,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
             </p>
 
             <div className="space-y-3">
-                            <button
+              <button
                 type="button"
                 onClick={() => {
                   setBuyModalOpen(false);
@@ -1009,12 +1206,15 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
                     title: trackToBuy.title,
                   });
                 }}
-
                 className="w-full bg-[#111] hover:bg-[#1f1f1f] border border-[#262626] hover:border-[#ff8c00] p-4 rounded-[14px] flex items-center justify-between text-left transition-all cursor-pointer group"
               >
                 <div>
-                  <div className="text-[11px] font-bold text-[#ff8c00] uppercase tracking-wider mb-0.5">Single Track</div>
-                  <div className="text-[14px] font-bold text-white group-hover:text-[#ff8c00] transition-colors">{trackToBuy.title}</div>
+                  <div className="text-[11px] font-bold text-[#ff8c00] uppercase tracking-wider mb-0.5">
+                    Single Track
+                  </div>
+                  <div className="text-[14px] font-bold text-white group-hover:text-[#ff8c00] transition-colors">
+                    {trackToBuy.title}
+                  </div>
                 </div>
                 <div className="text-[15px] font-bold text-white bg-[#222] px-3 py-1.5 rounded-[8px] border border-[#333]">
                   ${parseFloat(String(trackToBuy.price || 0.99)).toFixed(2)}
@@ -1030,14 +1230,18 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
                       itemType: 'album',
                       albumName: trackToBuy.album_name,
                       artistHandle: trackToBuy.artist_handle,
-                      price: 7.99
+                      price: 7.99,
                     });
                   }}
                   className="w-full bg-[#1e1710] hover:bg-[#2a1f12] border border-[#ff8c00]/40 hover:border-[#ff8c00] p-4 rounded-[14px] flex items-center justify-between text-left transition-all cursor-pointer group shadow-[0_0_16px_rgba(255,140,0,0.1)]"
                 >
                   <div>
-                    <div className="text-[11px] font-bold text-[#2ecc71] uppercase tracking-wider mb-0.5">Full Album Bundle</div>
-                    <div className="text-[14px] font-bold text-white group-hover:text-[#ff8c00] transition-colors">{trackToBuy.album_name}</div>
+                    <div className="text-[11px] font-bold text-[#2ecc71] uppercase tracking-wider mb-0.5">
+                      Full Album Bundle
+                    </div>
+                    <div className="text-[14px] font-bold text-white group-hover:text-[#ff8c00] transition-colors">
+                      {trackToBuy.album_name}
+                    </div>
                   </div>
                   <div className="text-[15px] font-bold text-[#ff8c00] bg-[#2a1f12] px-3 py-1.5 rounded-[8px] border border-[#ff8c00]/40">
                     $7.99
@@ -1057,13 +1261,14 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
         </div>
       )}
 
-                     <audio
+      <audio
         ref={audioRef}
-        preload="metadata"
+        preload="auto"
         onPlay={() => {
           setIsPlaying(true);
           const active = currentTrackRef.current;
-          if (active?.id) {
+          if (active?.id && lastLoggedPlayTrackIdRef.current !== String(active.id)) {
+            lastLoggedPlayTrackIdRef.current = String(active.id);
             logAnalyticsEvent('play', active);
           }
         }}
@@ -1072,13 +1277,21 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
             setIsPlaying(false);
           }
         }}
+        onWaiting={() => {
+          if (isPlayingRef.current) {
+            armStallWatchdog();
+          }
+        }}
+        onStalled={() => {
+          if (isPlayingRef.current) {
+            armStallWatchdog();
+          }
+        }}
         onLoadedMetadata={handleTimeUpdate}
         onTimeUpdate={handleTimeUpdate}
         onEnded={handleTrackEnded}
         onError={handleAudioError}
       />
-
-
     </div>
   );
 }
