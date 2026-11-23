@@ -602,7 +602,6 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     : 'Music Market'}
 </div>
 
-      </div>
 
       {/* Fixed-Height Search Bar Wrapper to prevent vertical shifting */}
       <div className={`search-wrapper relative w-full my-[6px] h-[36px] flex-shrink-0 ${searchActive ? 'active' : ''}`}>
