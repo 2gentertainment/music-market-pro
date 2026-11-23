@@ -401,7 +401,7 @@ export default function AnalyticsModal({
                 className="bg-neutral-950 border border-neutral-800 hover:border-purple-500/50 text-neutral-200 text-base sm:text-xs font-bold rounded-xl px-3 py-2.5 outline-none cursor-pointer transition-all shadow-sm"
               >
                 {isSuperAdmin && (
-                  <option value="all">All Platform Accounts (Global Master View)</option>
+                  <option value="all">All Platform (Global Master View)</option>
                 )}
                 <option value="roster_all">All Roster Artists (Master View)</option>
                 
