@@ -1,7 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import SupportModal from '@/components/SupportModal';
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://chhwujiajdhaihupvuix.supabase.co';
+
+function getTrackArtworkUrl(track: any): string | null {
+  if (track?.artwork_url) return track.artwork_url;
+  if (track?.artwork_file_path) {
+    return `${SUPABASE_URL}/storage/v1/object/public/v2-cover-art/${track.artwork_file_path}`;
+  }
+  return null;
+}
+
+function getTrackAudioUrl(track: any): string | null {
+  if (!track?.audio_file_path) return null;
+  return `${SUPABASE_URL}/storage/v1/object/public/v2-audio-vault/${track.audio_file_path}`;
+}
 
 export default function VaultPage() {
   const [email, setEmail] = useState('');
@@ -10,10 +25,46 @@ export default function VaultPage() {
   const [tracks, setTracks] = useState<Array<any> | null>(null);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
+  // Streaming state
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [activeTrackIndex, setActiveTrackIndex] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const handleToggleStream = (track: any, idx: number) => {
+    const audioUrl = getTrackAudioUrl(track);
+    if (!audioUrl) return;
+
+    if (activeTrackIndex === idx && audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        audioRef.current.play().catch((err) => console.error('Stream playback error:', err));
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    setActiveTrackIndex(idx);
+    setIsPlaying(true);
+
+    setTimeout(() => {
+      if (audioRef.current) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.play().catch((err) => {
+          console.error('Stream playback error:', err);
+          setIsPlaying(false);
+        });
+      }
+    }, 0);
+  };
+
   const handleVaultLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
+    setActiveTrackIndex(null);
+    setIsPlaying(false);
 
     try {
       const res = await fetch('/api/vault/verify', {
@@ -38,8 +89,18 @@ export default function VaultPage() {
     }
   };
 
+  const activeTrack =
+    activeTrackIndex !== null && tracks ? tracks[activeTrackIndex] || null : null;
+
   return (
     <div className="min-h-screen bg-[#121212] text-white flex flex-col justify-between touch-manipulation selection:bg-[#ff8c00] selection:text-black">
+      <audio
+        ref={audioRef}
+        onEnded={() => setIsPlaying(false)}
+        onPause={() => setIsPlaying(false)}
+        onPlay={() => setIsPlaying(true)}
+      />
+
       {/* Header */}
       <header className="w-full max-w-[1200px] mx-auto p-6 flex justify-between items-center">
         <div className="flex items-center gap-3">
@@ -57,7 +118,7 @@ export default function VaultPage() {
 
         <div className="flex items-center gap-4">
           <a href="/" className="text-[#aaa] hover:text-white text-[13px] font-bold transition-all">← Back to Home</a>
-          
+
           {/* Support Envelope Button */}
           <button
             onClick={() => setIsSupportModalOpen(true)}
@@ -73,24 +134,24 @@ export default function VaultPage() {
       </header>
 
       {/* Main Container */}
-      <section className="w-full max-w-[600px] mx-auto px-6 py-12 text-center flex flex-col items-center my-auto">
+      <section className="w-full max-w-[680px] mx-auto px-6 py-10 text-center flex flex-col items-center my-auto">
         <div className="w-[80px] h-[80px] mb-6 rounded-[20px] bg-black border border-[#262626] p-4 shadow-[0_8px_32px_rgba(0,0,0,0.8)] flex items-center justify-center">
-          <svg 
-            className="w-8 h-8 text-[#ff8c00]" 
-            fill="none" 
-            stroke="currentColor" 
-            strokeWidth="2" 
-            viewBox="0 0 24 24" 
+          <svg
+            className="w-8 h-8 text-[#ff8c00]"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
             xmlns="http://www.w3.org/2000/svg"
           >
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
         </div>
-        
+
         <h1 className="text-[32px] font-extrabold tracking-tight mb-2">Customer Download Vault</h1>
-        <p className="text-[#aaa] text-[14px] max-w-[460px] mb-8 leading-relaxed">
-          Forgot to download your audio masters right away? Enter the email address you used at checkout to instantly access your files.
+        <p className="text-[#aaa] text-[14px] max-w-[480px] mb-8 leading-relaxed">
+          Stream your purchased masters right here or download the full-quality audio files anytime using your checkout email.
         </p>
 
         {!tracks ? (
@@ -129,12 +190,64 @@ export default function VaultPage() {
                 <h3 className="text-[14px] text-white font-medium">{email}</h3>
               </div>
               <button
-                onClick={() => setTracks(null)}
+                onClick={() => {
+                  if (audioRef.current) audioRef.current.pause();
+                  setActiveTrackIndex(null);
+                  setIsPlaying(false);
+                  setTracks(null);
+                }}
                 className="text-xs text-[#aaa] hover:text-white underline cursor-pointer"
               >
                 Search Different Email
               </button>
             </div>
+
+            {activeTrack && (
+              <div className="bg-[#181818] border border-[#ff8c00]/40 p-4 rounded-[16px] flex items-center justify-between gap-4 shadow-lg">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-xl bg-black border border-[#2a2a2a] overflow-hidden flex-shrink-0 flex items-center justify-center">
+                    {getTrackArtworkUrl(activeTrack) ? (
+                      <img
+                        src={getTrackArtworkUrl(activeTrack)!}
+                        alt={activeTrack.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-[9px] font-black text-[#ff8c00]">WAV</span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-[#ff8c00] font-bold uppercase tracking-wider block">
+                      {isPlaying ? 'Now Streaming' : 'Paused'}
+                    </span>
+                    <p className="text-sm font-bold text-white truncate">{activeTrack.title}</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleStream(activeTrack, activeTrackIndex!)}
+                  className="bg-[#222] hover:bg-[#2c2c2c] text-white border border-[#383838] font-bold px-3.5 py-2 rounded-xl text-xs whitespace-nowrap cursor-pointer flex items-center gap-1.5"
+                >
+                  {isPlaying ? (
+                    <>
+                      <svg className="w-3.5 h-3.5 text-[#ff8c00]" fill="currentColor" viewBox="0 0 24 24">
+                        <rect x="6" y="4" width="4" height="16" rx="1" />
+                        <rect x="14" y="4" width="4" height="16" rx="1" />
+                      </svg>
+                      <span>Pause</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5 text-[#ff8c00]" fill="currentColor" viewBox="0 0 24 24">
+                        <polygon points="6 4 20 12 6 20 6 4" />
+                      </svg>
+                      <span>Resume</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
 
             <h3 className="text-[16px] font-bold text-white pt-2">Your Purchased Masters ({tracks.length})</h3>
 
@@ -144,32 +257,96 @@ export default function VaultPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {tracks.map((track, idx) => (
-                  <div key={idx} className="bg-[#161616] border border-[#262626] p-4 rounded-[16px] flex justify-between items-center gap-4">
-                    <div className="truncate">
-                      <h4 className="text-sm font-bold text-white truncate">{track.title}</h4>
-                      <span className="text-xs text-[#888] truncate block">
-                        Artist: @{track.artist_handle || 'independent'} • High-Quality Audio Master
-                      </span>
+                {tracks.map((track, idx) => {
+                  const artworkUrl = getTrackArtworkUrl(track);
+                  const audioUrl = getTrackAudioUrl(track);
+                  const isCurrentTrackPlaying = activeTrackIndex === idx && isPlaying;
+
+                  return (
+                    <div
+                      key={track.id || idx}
+                      className="bg-[#161616] border border-[#262626] p-4 rounded-[16px] flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="w-12 h-12 rounded-xl bg-black border border-[#2a2a2a] overflow-hidden flex-shrink-0 flex items-center justify-center">
+                          {artworkUrl ? (
+                            <img
+                              src={artworkUrl}
+                              alt={track.title || 'Track artwork'}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <svg className="w-5 h-5 text-[#666]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path d="M9 18V5l12-2v13" />
+                              <circle cx="6" cy="18" r="3" />
+                              <circle cx="18" cy="16" r="3" />
+                            </svg>
+                          )}
+                        </div>
+
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-bold text-white truncate">{track.title}</h4>
+                          <span className="text-xs text-[#888] truncate block">
+                            Artist: @{track.artist_handle || 'independent'} • High-Quality Audio Master
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {audioUrl && (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStream(track, idx)}
+                            className={`font-bold px-3.5 py-2 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 border ${
+                              isCurrentTrackPlaying
+                                ? 'bg-[#ff8c00]/20 text-[#ff8c00] border-[#ff8c00]/50'
+                                : 'bg-[#222] hover:bg-[#2b2b2b] text-white border-[#343434]'
+                            }`}
+                          >
+                            {isCurrentTrackPlaying ? (
+                              <>
+                                <svg className="w-3.5 h-3.5 text-[#ff8c00]" fill="currentColor" viewBox="0 0 24 24">
+                                  <rect x="6" y="4" width="4" height="16" rx="1" />
+                                  <rect x="14" y="4" width="4" height="16" rx="1" />
+                                </svg>
+                                <span>Pause</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3.5 h-3.5 text-[#ff8c00]" fill="currentColor" viewBox="0 0 24 24">
+                                  <polygon points="6 4 20 12 6 20 6 4" />
+                                </svg>
+                                <span>Stream</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+
+                        {audioUrl && (
+                          <a
+                            href={audioUrl}
+                            download
+                            className="bg-[#ff8c00] hover:bg-[#e07b00] text-black font-bold px-3.5 py-2 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5"
+                          >
+                            <svg className="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <polyline points="7 10 12 15 17 10" />
+                              <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            <span>Download</span>
+                          </a>
+                        )}
+                      </div>
                     </div>
-                    {track.audio_file_path && (
-                      <a
-                        href={`https://chhwujiajdhaihupvuix.supabase.co/storage/v1/object/public/v2-audio-vault/${track.audio_file_path}`}
-                        download
-                        className="bg-[#ff8c00] hover:bg-[#e07b00] text-black font-bold px-4 py-2 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer"
-                      >
-                        Download Master 📥
-                      </a>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
             {/* ARTIST CONVERSION CARD (Appears right after successful vault retrieval) */}
             <div className="mt-8 relative overflow-hidden rounded-[20px] bg-gradient-to-r from-[#161616] via-[#1a1a1a] to-[#121212] border border-[#2a2a2a] p-6 shadow-xl">
               <div className="absolute -right-10 -top-10 w-40 h-40 bg-[#ff8c00]/10 rounded-full blur-2xl pointer-events-none"></div>
-              
+
               <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
                 <div className="space-y-1">
                   <span className="text-[10px] text-[#ff8c00] font-bold uppercase tracking-wider">Independent Creators</span>
@@ -178,7 +355,7 @@ export default function VaultPage() {
                     Launch your own automated music store and keep 100% of your leverage with direct Stripe payouts.
                   </p>
                 </div>
-                
+
                 <a
                   href="/#pricing"
                   className="bg-[#ff8c00] hover:bg-[#e07b00] text-black font-bold px-5 py-3 rounded-[12px] text-xs whitespace-nowrap transition-all shadow-[0_0_15px_rgba(255,140,0,0.2)] cursor-pointer"
@@ -187,7 +364,6 @@ export default function VaultPage() {
                 </a>
               </div>
             </div>
-
           </div>
         )}
       </section>
