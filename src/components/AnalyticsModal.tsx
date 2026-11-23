@@ -98,11 +98,11 @@ export default function AnalyticsModal({
       return now.toISOString();
     }
     const days = tf === '7d' ? 7 : 30;
-    now.setDate(now.getDate() - days);
+    now.setDate(now.setDate(now.getDate() - days));
     return now.toISOString();
   }
 
-    useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       setSelectedRosterFilter('all');
       setSelectedGenreFilter('all');
@@ -121,11 +121,10 @@ export default function AnalyticsModal({
         : artistHandle;
       const effectiveHandle = rawHandle ? String(rawHandle).trim().toLowerCase() : undefined;
 
-
       // Only query global ecosystem data if super admin is viewing the global 'all' option
       const querySuperAdmin = isSuperAdmin && selectedRosterFilter === 'all';
 
-               const normalizedArtistHandle = String(artistHandle || '').trim().toLowerCase();
+      const normalizedArtistHandle = String(artistHandle || '').trim().toLowerCase();
       const normalizedRosterHandles = Array.from(
         new Set(
           (rosterArtists || [])
@@ -148,8 +147,6 @@ export default function AnalyticsModal({
         commissionAuditLog: data.commissionAuditLog || [],
         topArtistsLeaderboard: data.topArtistsLeaderboard || [],
       });
-
-
 
       // Fetch Track-Level Performance Breakdown (exclude soft-deleted tracks)
       let trackQuery = supabase
@@ -195,12 +192,11 @@ export default function AnalyticsModal({
           } else {
             fanQuery = fanQuery.eq('artist_handle', '__none__');
           }
-                } else if (normalizedArtistHandle) {
+        } else if (normalizedArtistHandle) {
           fanQuery = fanQuery.ilike('artist_handle', normalizedArtistHandle);
         } else {
           fanQuery = fanQuery.eq('artist_handle', '__none__');
         }
-
 
         const startIso = getTimeframeStartIso(timeframe);
         if (startIso) {
@@ -210,7 +206,6 @@ export default function AnalyticsModal({
         const { data: fansData } = await fanQuery;
         setFanRecords(fansData || []);
       }
-
 
       setLoading(false);
     }
@@ -412,12 +407,15 @@ export default function AnalyticsModal({
                 
                 {rosterArtists.map((artist) => {
                   const handle = artist.artist_handle || artist.handle;
-                  const displayName = artist.name || artist.handle || 'Artist';
                   if (!handle) return null;
+
+                  const stageName = String(handle)
+                    .replace(/[-_]+/g, ' ')
+                    .replace(/\b\w/g, (c: string) => c.toUpperCase());
 
                   return (
                     <option key={artist.id || handle} value={handle}>
-                      {displayName} (@{handle})
+                      {stageName} (@{handle})
                     </option>
                   );
                 })}
@@ -636,7 +634,7 @@ export default function AnalyticsModal({
                 </div>
               ) : (
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                                    {trackStats.map((track) => {
+                  {trackStats.map((track) => {
                     const rawId = String(track.id || '');
                     const stats =
                       metrics.trackBreakdown[rawId] ||
@@ -645,7 +643,6 @@ export default function AnalyticsModal({
                         clickThroughs: 0,
                         revenue: 0,
                       };
-
 
                     return (
                       <div key={track.id} className="bg-neutral-950 border border-neutral-800 p-3 rounded-xl flex items-center justify-between gap-4">
