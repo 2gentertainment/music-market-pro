@@ -594,7 +594,14 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
   return (
     <div className="player-card bg-[#121212] text-white w-full max-w-[480px] h-[100dvh] p-4 flex flex-col justify-between overflow-hidden box-border mx-auto relative touch-manipulation">
       <div className="player-header text-center text-[11px] tracking-[2px] text-[#666] uppercase pt-[2px]">
-        {artistHandle ? `${artistHandle.toUpperCase()} STORE` : 'Music Market'}
+  {(artistHandle || currentTrack?.artist_handle)
+    ? String(artistHandle || currentTrack?.artist_handle)
+        .replace(/[-_]+/g, ' ')
+        .trim()
+        .toUpperCase()
+    : 'Music Market'}
+</div>
+
       </div>
 
       {/* Fixed-Height Search Bar Wrapper to prevent vertical shifting */}
