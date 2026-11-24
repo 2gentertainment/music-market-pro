@@ -826,14 +826,39 @@ export default function VaultPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
+                                <button
                   type="button"
                   onClick={handleTogglePreview}
                   disabled={decodingStatus !== 'ready'}
                   className="bg-[#191524] hover:bg-[#221c33] disabled:opacity-40 text-[#ddd6fe] border border-[#352b4a] font-bold py-2.5 px-3 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  <span>{isPreviewPlaying ? '■ Stop Slice' : '▶ Preview Slice'}</span>
+                  {isPreviewPlaying ? (
+                    <>
+                      <svg
+                        className="w-3.5 h-3.5 text-[#a78bfa] flex-shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <rect x="6" y="6" width="12" height="12" rx="2" />
+                      </svg>
+                      <span>Stop Slice</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-3.5 h-3.5 text-[#a78bfa] flex-shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path d="M8 5.5v13l11-6.5-11-6.5z" />
+                      </svg>
+                      <span>Preview Slice</span>
+                    </>
+                  )}
                 </button>
+
 
                 <button
                   type="button"
