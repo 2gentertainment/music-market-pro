@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import SupportModal from '@/components/SupportModal';
 
 const SUPABASE_URL =
@@ -17,6 +17,25 @@ function getTrackArtworkUrl(track: any): string | null {
 function getTrackDownloadUrl(track: any): string | null {
   if (!track?.audio_file_path) return null;
   return `${SUPABASE_URL}/storage/v1/object/public/v2-audio-vault/${track.audio_file_path}`;
+}
+
+function formatSeconds(sec: number): string {
+  const safe = Math.max(0, Math.floor(sec));
+  const mins = Math.floor(safe / 60);
+  const rem = safe % 60;
+  return `${mins}:${rem.toString().padStart(2, '0')}`;
+}
+
+function buildTimestampShareUrl(track: any, startSec: number): string {
+  if (typeof window === 'undefined') return '';
+  const origin = window.location.origin;
+  const safeStart = Math.max(0, Math.floor(startSec));
+  const handle = track?.artist_handle ? encodeURIComponent(String(track.artist_handle)) : '';
+  if (handle) {
+    const trackParam = track?.id ? `&track=${encodeURIComponent(String(track.id))}` : '';
+    return `${origin}/artist/${handle}?t=${safeStart}${trackParam}`;
+  }
+  return `${origin}/vault?t=${safeStart}`;
 }
 
 type PlatformKey = 'spotify' | 'apple' | 'youtube' | 'tidal' | 'pandora';
@@ -120,11 +139,105 @@ export default function VaultPage() {
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [streamModalTrack, setStreamModalTrack] = useState<any | null>(null);
 
+  // Ringtone / Snippet Clipper modal state
+  const [ringtoneModalTrack, setRingtoneModalTrack] = useState<any | null>(null);
+  const [clipStartSec, setClipStartSec] = useState<number>(0);
+  const [clipDurationSec, setClipDurationSec] = useState<number>(20);
+  const [audioDurationSec, setAudioDurationSec] = useState<number>(180);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
+  const [copiedClipLink, setCopiedClipLink] = useState<boolean>(false);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopClipPreview = () => {
+    if (previewAudioRef.current) {
+      previewAudioRef.current.pause();
+    }
+    setIsPreviewPlaying(false);
+  };
+
+  const openRingtoneModal = (track: any) => {
+    stopClipPreview();
+    setClipStartSec(0);
+    setClipDurationSec(20);
+    setAudioDurationSec(180);
+    setCopiedClipLink(false);
+    setRingtoneModalTrack(track);
+  };
+
+  const closeRingtoneModal = () => {
+    stopClipPreview();
+    setRingtoneModalTrack(null);
+  };
+
+  useEffect(() => {
+    const audioEl = previewAudioRef.current;
+    if (!audioEl || !ringtoneModalTrack) return;
+
+    const handleLoadedMetadata = () => {
+      if (Number.isFinite(audioEl.duration) && audioEl.duration > 0) {
+        setAudioDurationSec(Math.floor(audioEl.duration));
+      }
+    };
+
+    const handleTimeUpdate = () => {
+      const endSec = clipStartSec + clipDurationSec;
+      if (audioEl.currentTime >= endSec) {
+        audioEl.pause();
+        audioEl.currentTime = clipStartSec;
+        setIsPreviewPlaying(false);
+      }
+    };
+
+    const handleEnded = () => {
+      setIsPreviewPlaying(false);
+    };
+
+    audioEl.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audioEl.addEventListener('timeupdate', handleTimeUpdate);
+    audioEl.addEventListener('ended', handleEnded);
+
+    return () => {
+      audioEl.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audioEl.removeEventListener('timeupdate', handleTimeUpdate);
+      audioEl.removeEventListener('ended', handleEnded);
+    };
+  }, [ringtoneModalTrack, clipStartSec, clipDurationSec]);
+
+  const toggleClipPreview = async () => {
+    const audioEl = previewAudioRef.current;
+    if (!audioEl) return;
+
+    if (isPreviewPlaying) {
+      audioEl.pause();
+      setIsPreviewPlaying(false);
+      return;
+    }
+
+    try {
+      audioEl.currentTime = Math.min(clipStartSec, Math.max(0, (audioEl.duration || audioDurationSec) - 1));
+      await audioEl.play();
+      setIsPreviewPlaying(true);
+    } catch (err) {
+      console.error('Clip preview playback error:', err);
+      setIsPreviewPlaying(false);
+    }
+  };
+
+  const handleCopyClipLink = () => {
+    if (!ringtoneModalTrack) return;
+    const shareUrl = buildTimestampShareUrl(ringtoneModalTrack, clipStartSec);
+    if (!shareUrl || typeof navigator === 'undefined' || !navigator.clipboard) return;
+    navigator.clipboard.writeText(shareUrl);
+    setCopiedClipLink(true);
+    setTimeout(() => setCopiedClipLink(false), 2500);
+  };
+
   const handleVaultLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     setStreamModalTrack(null);
+    closeRingtoneModal();
 
     try {
       const res = await fetch('/api/vault/verify', {
@@ -150,6 +263,9 @@ export default function VaultPage() {
   };
 
   const activeStreamPlatforms = streamModalTrack ? getStreamingPlatforms(streamModalTrack) : [];
+  const ringtoneArtworkUrl = ringtoneModalTrack ? getTrackArtworkUrl(ringtoneModalTrack) : null;
+  const ringtoneAudioUrl = ringtoneModalTrack ? getTrackDownloadUrl(ringtoneModalTrack) : null;
+  const maxStartSec = Math.max(0, audioDurationSec - clipDurationSec);
 
   return (
     <div className="min-h-screen bg-[#121212] text-white flex flex-col justify-between touch-manipulation selection:bg-[#ff8c00] selection:text-black">
@@ -256,6 +372,7 @@ export default function VaultPage() {
               <button
                 onClick={() => {
                   setStreamModalTrack(null);
+                  closeRingtoneModal();
                   setTracks(null);
                 }}
                 className="text-xs text-[#aaa] hover:text-white underline cursor-pointer"
@@ -312,42 +429,71 @@ export default function VaultPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setStreamModalTrack(track)}
-                          className="bg-[#222] hover:bg-[#2b2b2b] text-white border border-[#343434] hover:border-[#ff8c00]/50 font-bold px-3.5 py-2 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5"
-                          title="Choose Streaming Platform"
-                        >
-                          <svg
-                            className="w-3.5 h-3.5 text-[#ff8c00]"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.2"
-                            viewBox="0 0 24 24"
+                      <div className="flex flex-col gap-2 w-full sm:w-[220px] flex-shrink-0">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setStreamModalTrack(track)}
+                            className="bg-[#222] hover:bg-[#2b2b2b] text-white border border-[#343434] hover:border-[#ff8c00]/50 font-bold px-3 py-2 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                            title="Choose Streaming Platform"
                           >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 14.5a5 5 0 0 1 0-7" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 17.5a9 9 0 0 1 0-13" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.5 7.5a5 5 0 0 1 0 7" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 4.5a9 9 0 0 1 0 13" />
-                            <circle cx="12" cy="11" r="1.5" fill="currentColor" />
-                          </svg>
-                          <span>Stream</span>
-                        </button>
+                            <svg
+                              className="w-3.5 h-3.5 text-[#ff8c00] flex-shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.2"
+                              viewBox="0 0 24 24"
+                              aria-hidden="true"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 14.5a5 5 0 0 1 0-7" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 17.5a9 9 0 0 1 0-13" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.5 7.5a5 5 0 0 1 0 7" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 4.5a9 9 0 0 1 0 13" />
+                              <circle cx="12" cy="11" r="1.5" fill="currentColor" />
+                            </svg>
+                            <span>Stream</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => openRingtoneModal(track)}
+                            className="bg-[#191524] hover:bg-[#221c33] text-[#ddd6fe] border border-[#352b4a] hover:border-[#a78bfa]/60 font-bold px-3 py-2 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                            title="Preview Hook & Save Ringtone"
+                          >
+                            <svg
+                              className="w-3.5 h-3.5 text-[#a78bfa] flex-shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.1"
+                              viewBox="0 0 24 24"
+                              aria-hidden="true"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 0 0-4-5.66V4a2 2 0 1 0-4 0v1.34A6 6 0 0 0 6 11v3.2a2 2 0 0 1-.6 1.4L4 17h5"
+                              />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 17a2.5 2.5 0 0 0 5 0" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M20 7.5a4.5 4.5 0 0 1 0 5" />
+                            </svg>
+                            <span>Ringtone</span>
+                          </button>
+                        </div>
 
                         {downloadUrl && (
                           <a
                             href={downloadUrl}
                             download
-                            className="bg-[#ff8c00] hover:bg-[#e07b00] text-black font-bold px-3.5 py-2 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5"
+                            className="w-full bg-[#ff8c00] hover:bg-[#e07b00] text-black font-bold px-3.5 py-2.5 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-[0_0_16px_rgba(255,140,0,0.18)]"
                             title="Download Audio Master"
                           >
                             <svg
-                              className="w-3.5 h-3.5 text-black"
+                              className="w-3.5 h-3.5 text-black flex-shrink-0"
                               fill="none"
                               stroke="currentColor"
                               strokeWidth="2.5"
                               viewBox="0 0 24 24"
+                              aria-hidden="true"
                             >
                               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                               <polyline points="7 10 12 15 17 10" />
@@ -389,6 +535,167 @@ export default function VaultPage() {
           </div>
         )}
       </section>
+
+      {/* Ringtone Snippet Preview & Save Modal */}
+      {ringtoneModalTrack && (
+        <div
+          onClick={closeRingtoneModal}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 touch-manipulation"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#161616] border border-[#352b4a] rounded-3xl w-full max-w-md p-6 space-y-5 text-left shadow-2xl max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[#242424] pb-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-black border border-[#352b4a] overflow-hidden flex-shrink-0 flex items-center justify-center">
+                  {ringtoneArtworkUrl ? (
+                    <img
+                      src={ringtoneArtworkUrl}
+                      alt={ringtoneModalTrack.title || 'Track artwork'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-[10px] font-black text-[#a78bfa]">CLIP</span>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[10px] text-[#a78bfa] font-bold uppercase tracking-wider block">
+                    Ringtone & Hook Preview
+                  </span>
+                  <h3 className="font-extrabold text-base text-white truncate">
+                    {ringtoneModalTrack.title}
+                  </h3>
+                  <p className="text-xs text-[#888] truncate">
+                    @{ringtoneModalTrack.artist_handle || 'independent'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeRingtoneModal}
+                className="text-[#888] hover:text-white font-bold text-lg cursor-pointer px-1"
+                aria-label="Close ringtone modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            {ringtoneAudioUrl && (
+              <audio ref={previewAudioRef} src={ringtoneAudioUrl} preload="metadata" />
+            )}
+
+            {/* Clip Length & Start Time */}
+            <div className="bg-[#111] border border-[#242424] rounded-2xl p-4 space-y-4">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-[#ccc]">Clip Length</span>
+                <div className="flex items-center gap-1.5">
+                  {[15, 20, 30].map((len) => (
+                    <button
+                      key={len}
+                      type="button"
+                      onClick={() => {
+                        stopClipPreview();
+                        setClipDurationSec(len);
+                        setClipStartSec((prev) => Math.min(prev, Math.max(0, audioDurationSec - len)));
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                        clipDurationSec === len
+                          ? 'bg-[#221c33] border-[#a78bfa] text-[#ddd6fe]'
+                          : 'bg-[#161616] border-[#2a2a2a] text-[#888] hover:text-white'
+                      }`}
+                    >
+                      {len}s
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-bold text-[#ccc]">Start Time</span>
+                  <span className="text-[#a78bfa] font-mono font-bold">
+                    {formatSeconds(clipStartSec)} → {formatSeconds(Math.min(audioDurationSec, clipStartSec + clipDurationSec))}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={maxStartSec}
+                  step={1}
+                  value={Math.min(clipStartSec, maxStartSec)}
+                  onChange={(e) => {
+                    stopClipPreview();
+                    setClipStartSec(Number(e.target.value));
+                  }}
+                  className="w-full accent-[#a78bfa] cursor-pointer"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={toggleClipPreview}
+                  disabled={!ringtoneAudioUrl}
+                  className="bg-[#191524] hover:bg-[#221c33] disabled:opacity-40 text-[#ddd6fe] border border-[#352b4a] font-bold py-2.5 px-3 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <span>{isPreviewPlaying ? '■ Stop Preview' : '▶ Preview Clip'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyClipLink}
+                  className="bg-[#181818] hover:bg-[#222] text-white border border-[#2e2e2e] font-bold py-2.5 px-3 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <span>{copiedClipLink ? '✓ Link Copied' : 'Copy Clip Link'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Save File Action */}
+            {ringtoneAudioUrl && (
+              <a
+                href={ringtoneAudioUrl}
+                download
+                className="w-full bg-[#a78bfa] hover:bg-[#9370f7] text-black font-bold py-3 px-4 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-2 shadow-[0_0_16px_rgba(167,139,250,0.2)]"
+              >
+                <svg
+                  className="w-4 h-4 text-black flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span>Save Audio to Device / Files</span>
+              </a>
+            )}
+
+            {/* Honest Device Guidance */}
+            <div className="bg-[#111] border border-[#242424] rounded-2xl p-3.5 text-[11px] text-[#999] space-y-1.5 leading-relaxed">
+              <p>
+                <span className="text-white font-bold">iPhone / iOS:</span> Save or share the file directly to <span className="text-[#ddd6fe] font-semibold">Files</span> or <span className="text-[#ddd6fe] font-semibold">Voice Memos</span>. To set it as an active incoming call ringtone on iPhone without a computer, Apple requires bringing the file into <span className="text-white font-semibold">GarageBand</span> and exporting as a ringtone.
+              </p>
+              <p>
+                <span className="text-white font-bold">Android:</span> Save the audio file to your device and pick it from your phone&apos;s <span className="text-white font-semibold">Sound / Ringtone</span> settings.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={closeRingtoneModal}
+              className="w-full bg-[#222] hover:bg-[#2b2b2b] text-white font-bold py-2.5 rounded-xl text-xs cursor-pointer transition-all"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Streaming Platforms Pop-up Modal */}
       {streamModalTrack && (
