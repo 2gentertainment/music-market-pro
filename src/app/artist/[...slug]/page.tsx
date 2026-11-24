@@ -1,298 +1,137 @@
-'use client';
+import type { Metadata } from 'next';
+import { createClient } from '@supabase/supabase-js';
+import DynamicStorefrontRouter from './DynamicStorefrontRouter';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
-import { supabase as _supabase } from '@/utils/supabase';
-import AudioPlayer from '@/components/AudioPlayer';
-import LabelStorefront from '@/components/LabelStorefront';
-import ImpulsePlayer from '@/components/ImpulsePlayer';
+const FALLBACK_MUSIC_THUMBNAIL =
+  'https://www.2g-ent.com/uploads/2/7/5/9/27593217/box-logo_orig.jpg';
 
-const VALID_TIERS = new Set(['free', 'artist', 'label']);
+const supabaseServer = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-function normalizeHandle(value?: string | null): string {
-  return String(value ?? '').trim().toLowerCase();
+function resolveArtworkUrl(raw?: string | null): string {
+  if (!raw || !raw.trim()) return FALLBACK_MUSIC_THUMBNAIL;
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, '');
+  if (baseUrl) {
+    return `${baseUrl}/storage/v1/object/public/${trimmed.replace(/^\/+/, '')}`;
+  }
+  return FALLBACK_MUSIC_THUMBNAIL;
 }
 
-function expandHandleVariants(handles: Array<string | null | undefined>): string[] {
-  const variants = handles
-    .filter((h): h is string => Boolean(h && h.trim()))
-    .flatMap((h) => {
-      const trimmed = h.trim();
-      return [trimmed, trimmed.toLowerCase()];
-    });
-  return Array.from(new Set(variants));
-}
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug?: string | string[] }>;
+  searchParams: Promise<{ drop?: string; view?: string }>;
+}): Promise<Metadata> {
+  const resolvedParams = await params;
+  const resolvedSearch = await searchParams;
 
+  const rawSlug = resolvedParams?.slug;
+  const slugParts = Array.isArray(rawSlug)
+    ? rawSlug.map((s) => decodeURIComponent(s).trim())
+    : typeof rawSlug === 'string'
+    ? [decodeURIComponent(rawSlug).trim()]
+    : [];
 
-interface Track {
-  id: string | number;
-  title: string;
-  price: number;
-  audio_file_path: string;
-  artwork_url?: string;
-  artwork_file_path?: string;
-  album_name?: string | null;
-  spotify_url?: string | null;
-  apple_music_url?: string | null;
-  tidal_url?: string | null;
-  youtube_url?: string | null;
-  pandora_url?: string | null;
-  artist_handle?: string | null;
-  track_order?: number | null;
-  album_order?: number | null;
-  album_index?: number | null;
-}
+  const primary = slugParts[0] || '';
+  const secondary = slugParts[1] || '';
+  const targetHandle =
+    primary.toLowerCase() === 'workspace' ? secondary : primary || '2g-imprint';
 
-interface Profile {
-  id: string;
-  handle: string;
-  artist_handle?: string;
-  display_name?: string;
-  avatar_url?: string;
-  logo_url?: string;
-  tier: 'free' | 'artist' | 'label';
-  stripe_account_id?: string;
-}
+  // 1. Track-specific ?drop= share link
+  if (resolvedSearch?.drop) {
+    const { data: track } = await supabaseServer
+      .from('tracks_pro')
+      .select('title, artist_handle, artwork_url, artwork_file_path, album_name')
+      .eq('id', resolvedSearch.drop)
+      .maybeSingle();
 
-export default function DynamicStorefrontRouter() {
-  const params = useParams();
-  const searchParams = useSearchParams();
-  const dropTrackId = searchParams.get('drop');
-  const forcePlayerView = searchParams.get('view') === 'player';
+    if (track) {
+      const thumb = resolveArtworkUrl(track.artwork_url || track.artwork_file_path);
+      const artistLabel = track.artist_handle || targetHandle;
+      const title = `${track.title} — ${artistLabel} | Music Market Pro`;
+      const description = track.album_name
+        ? `Listen to "${track.title}" from ${track.album_name} by ${artistLabel} on Music Market Pro.`
+        : `Listen to "${track.title}" by ${artistLabel} on Music Market Pro.`;
 
-
-  const rawSlug = params?.slug;
-  const slugArray = useMemo(() => {
-    if (Array.isArray(rawSlug)) return rawSlug.map((s) => decodeURIComponent(s).trim());
-    if (typeof rawSlug === 'string') return [decodeURIComponent(rawSlug).trim()];
-    return [];
-  }, [rawSlug]);
-
-  const isWorkspaceNested = normalizeHandle(slugArray[0]) === 'workspace';
-  const primarySlug = slugArray[0] || '';
-  const secondarySlug = slugArray[1] || null;
-
-  const targetArtistHandle = useMemo(() => {
-    if (isWorkspaceNested) return secondarySlug || null;
-    const normPrimary = normalizeHandle(primarySlug);
-    if (normPrimary && normPrimary !== '2g-imprint' && normPrimary !== 'workspace') {
-      return primarySlug;
+      return {
+        title,
+        description,
+        openGraph: {
+          title,
+          description,
+          type: 'music.song',
+          images: [{ url: thumb, alt: track.title }],
+        },
+        twitter: {
+          card: 'summary_large_image',
+          title,
+          description,
+          images: [thumb],
+        },
+      };
     }
-    return null;
-  }, [isWorkspaceNested, primarySlug, secondarySlug]);
-
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [loading, setLoading] = useState<boolean>(!dropTrackId);
-
-
-    useEffect(() => {
-    if (dropTrackId) {
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function loadStorefrontData() {
-      setLoading(true);
-      setTracks([]);
-
-            try {
-        const isDevSuiteEnabled =
-          process.env.NODE_ENV === 'development' &&
-          process.env.NEXT_PUBLIC_ENABLE_DEV_SUITE === 'true';
-
-        const rawDevTier =
-          isDevSuiteEnabled && typeof window !== 'undefined'
-            ? localStorage.getItem('mm_dev_tier')
-            : null;
-        const devTier =
-          rawDevTier && VALID_TIERS.has(rawDevTier)
-            ? (rawDevTier as Profile['tier'])
-            : null;
-
-        const lookupHandle = (targetArtistHandle || primarySlug).trim();
-        let profileData: Profile | null = null;
-
-        if (lookupHandle && normalizeHandle(lookupHandle) !== 'workspace') {
-          const safeLookup = lookupHandle.replace(/[,()]/g, '');
-          const { data } = await _supabase
-            .from('profiles')
-            .select('*')
-            .or(`handle.ilike.${safeLookup},artist_handle.ilike.${safeLookup}`)
-            .maybeSingle();
-
-          profileData = data as Profile | null;
-        }
-
-        if (!profileData && !targetArtistHandle) {
-          const { data: labelProfiles } = await _supabase
-            .from('profiles')
-            .select('*')
-            .eq('tier', 'label')
-            .is('parent_label_id', null)
-            .limit(1);
-
-          if (labelProfiles && labelProfiles.length > 0) {
-            profileData = labelProfiles[0] as Profile;
-          }
-        }
-
-        const activeProfile: Profile = profileData || {
-          id: 'test-id',
-          handle: lookupHandle || '2g-imprint',
-          display_name: lookupHandle || 'Music Market',
-          tier: targetArtistHandle ? 'artist' : 'label',
-        };
-
-                if (isDevSuiteEnabled && devTier) {
-          activeProfile.tier = devTier;
-        }
-
-
-        if (cancelled) return;
-        setProfile(activeProfile);
-
-                const normTarget = normalizeHandle(targetArtistHandle);
-        const normProfileHandle = normalizeHandle(activeProfile.handle);
-        const normProfileArtistHandle = normalizeHandle(activeProfile.artist_handle);
-
-        const isExplicitArtistHandleMatch =
-          Boolean(normTarget) &&
-          Boolean(normProfileArtistHandle) &&
-          normTarget === normProfileArtistHandle &&
-          normProfileArtistHandle !== normProfileHandle;
-
-        const isLabelView =
-          !forcePlayerView &&
-          !isExplicitArtistHandleMatch &&
-          (activeProfile.tier === 'label' ||
-            (!targetArtistHandle && normalizeHandle(primarySlug) === '2g-imprint'));
-
-        let lookupHandles: string[] = [];
-
-        if (isLabelView) {
-          const { data: rosterArtists } = await _supabase
-            .from('profiles')
-            .select('handle, artist_handle')
-            .eq('parent_label_id', activeProfile.id);
-
-          lookupHandles = expandHandleVariants([
-            activeProfile.handle,
-            activeProfile.artist_handle,
-            ...(rosterArtists?.flatMap((a) => [a.handle, a.artist_handle]) || []),
-          ]);
-        } else {
-          lookupHandles = expandHandleVariants(
-            isExplicitArtistHandleMatch || forcePlayerView
-              ? [targetArtistHandle || activeProfile.artist_handle || activeProfile.handle]
-              : [targetArtistHandle, activeProfile.handle, activeProfile.artist_handle]
-          );
-        }
-
-
-        if (lookupHandles.length === 0) {
-          if (!cancelled) setTracks([]);
-          return;
-        }
-
-        const { data: trackData, error: trackError } = await _supabase
-          .from('tracks_pro')
-          .select('*')
-          .eq('is_archived', false)
-          .is('deleted_at', null)
-          .in('artist_handle', lookupHandles)
-          .order('track_order', { ascending: true, nullsFirst: false })
-          .order('album_index', { ascending: true, nullsFirst: false });
-
-        if (cancelled) return;
-
-        if (trackError) {
-          console.error('Error fetching tracks:', trackError);
-          setTracks([]);
-          return;
-        }
-
-        const validV2Tracks = (trackData || []).filter(
-          (t) => t.audio_file_path && !t.audio_file_path.includes('v1-legacy')
-        );
-        setTracks(validV2Tracks);
-      } catch (err) {
-        if (!cancelled) {
-          console.error('Error loading storefront:', err);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadStorefrontData();
-
-    const handleTierChange = () => loadStorefrontData();
-    window.addEventListener('mm_tier_changed', handleTierChange);
-    return () => {
-      cancelled = true;
-      window.removeEventListener('mm_tier_changed', handleTierChange);
-    };
-  }, [dropTrackId, primarySlug, secondarySlug, targetArtistHandle]);
-
-
-    // 1. SAFE POST-HOOK INTERCEPT FOR ?drop= IMPULSE PLAYER
-  if (dropTrackId) {
-    return <ImpulsePlayer trackId={dropTrackId} />;
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center text-sm text-neutral-400">
-        Loading storefront...
-      </div>
-    );
-  }
+  // 2. Artist or Label storefront share link
+  const safeLookup = targetHandle.replace(/[,()]/g, '');
+  const { data: profile } = await supabaseServer
+    .from('profiles')
+    .select('handle, artist_handle, display_name, avatar_url, logo_url, tier')
+    .or(`handle.ilike.${safeLookup},artist_handle.ilike.${safeLookup}`)
+    .maybeSingle();
 
-    // 2. RENDER LABEL STOREFRONT FOR LABEL PROFILES OR ROOT LABEL SLUG
-  const normCurrentSlug = normalizeHandle(targetArtistHandle || primarySlug);
-  const normResolvedHandle = normalizeHandle(profile?.handle);
-  const normResolvedArtistHandle = normalizeHandle(profile?.artist_handle);
+  const displayName = profile?.display_name || targetHandle || 'Music Market Pro';
 
-  const isTargetingOwnerArtistHandle =
-    Boolean(normCurrentSlug) &&
-    Boolean(normResolvedArtistHandle) &&
-    normCurrentSlug === normResolvedArtistHandle &&
-    normResolvedArtistHandle !== normResolvedHandle;
+  const { data: topTrack } = await supabaseServer
+    .from('tracks_pro')
+    .select('title, artwork_url, artwork_file_path')
+    .eq('is_archived', false)
+    .is('deleted_at', null)
+    .ilike('artist_handle', safeLookup)
+    .order('track_order', { ascending: true, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
 
-  const isLabelStorefront =
-    !forcePlayerView &&
-    !isTargetingOwnerArtistHandle &&
-    (profile?.tier === 'label' ||
-      (!targetArtistHandle && Boolean(primarySlug)));
-
-  if (isLabelStorefront) {
-    return (
-      <LabelStorefront
-        profile={profile}
-        tracks={tracks}
-        labelHandle={primarySlug || profile?.handle || '2g-imprint'}
-      />
-    );
-  }
-
-
-  // 3. RENDER INDIVIDUAL ARTIST AUDIO PLAYER
-  const artistHandleToUse = targetArtistHandle || primarySlug;
-  const artistTier = profile?.tier === 'label' ? 'artist' : (profile?.tier || 'artist');
-
-
-  return (
-    <div className="h-[100dvh] w-full bg-neutral-950 flex flex-col items-center justify-center overflow-hidden p-0 touch-manipulation">
-      <AudioPlayer
-        artistHandle={artistHandleToUse}
-        initialTracks={tracks}
-        tier={artistTier}
-      />
-    </div>
+  const thumbnail = resolveArtworkUrl(
+    topTrack?.artwork_url ||
+      topTrack?.artwork_file_path ||
+      profile?.avatar_url ||
+      profile?.logo_url ||
+      FALLBACK_MUSIC_THUMBNAIL
   );
+
+  const title = `${displayName} | Music Market Pro`;
+  const description =
+    profile?.tier === 'label'
+      ? `Explore releases and artists from ${displayName} on Music Market Pro.`
+      : `Stream and support ${displayName} directly on Music Market Pro.`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'website',
+      images: [{ url: thumbnail, alt: displayName }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [thumbnail],
+    },
+  };
+}
+
+export default function Page() {
+  return <DynamicStorefrontRouter />;
 }
