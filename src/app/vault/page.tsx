@@ -14,7 +14,7 @@ function getTrackArtworkUrl(track: any): string | null {
   return null;
 }
 
-function getTrackDownloadUrl(track: any): string | null {
+function getTrackAudioUrl(track: any): string | null {
   if (!track?.audio_file_path) return null;
   return `${SUPABASE_URL}/storage/v1/object/public/v2-audio-vault/${track.audio_file_path}`;
 }
@@ -26,16 +26,68 @@ function formatSeconds(sec: number): string {
   return `${mins}:${rem.toString().padStart(2, '0')}`;
 }
 
-function buildTimestampShareUrl(track: any, startSec: number): string {
-  if (typeof window === 'undefined') return '';
-  const origin = window.location.origin;
-  const safeStart = Math.max(0, Math.floor(startSec));
-  const handle = track?.artist_handle ? encodeURIComponent(String(track.artist_handle)) : '';
-  if (handle) {
-    const trackParam = track?.id ? `&track=${encodeURIComponent(String(track.id))}` : '';
-    return `${origin}/artist/${handle}?t=${safeStart}${trackParam}`;
+function sanitizeFileName(name?: string): string {
+  const base = String(name || 'ringtone-clip')
+    .trim()
+    .replace(/[^a-zA-Z0-9-_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return base || 'ringtone-clip';
+}
+
+function writeAsciiString(view: DataView, offset: number, str: string) {
+  for (let i = 0; i < str.length; i++) {
+    view.setUint8(offset + i, str.charCodeAt(i));
   }
-  return `${origin}/vault?t=${safeStart}`;
+}
+
+function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
+  const numChannels = Math.min(2, buffer.numberOfChannels || 1);
+  const sampleRate = buffer.sampleRate;
+  const numSamples = buffer.length;
+  const bytesPerSample = 2; // 16-bit PCM
+  const blockAlign = numChannels * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = numSamples * blockAlign;
+  const arrayBuffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(arrayBuffer);
+
+  // RIFF chunk descriptor
+  writeAsciiString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeAsciiString(view, 8, 'WAVE');
+
+  // fmt sub-chunk
+  writeAsciiString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true); // PCM chunk size
+  view.setUint16(20, 1, true); // Audio format: 1 = PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true); // Bits per sample
+
+  // data sub-chunk
+  writeAsciiString(view, 36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  const channels: Float32Array[] = [];
+  for (let ch = 0; ch < numChannels; ch++) {
+    channels.push(buffer.getChannelData(ch));
+  }
+
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    for (let ch = 0; ch < numChannels; ch++) {
+      const rawSample = channels[ch][i] ?? 0;
+      const clamped = Math.max(-1, Math.min(1, rawSample));
+      const intSample = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
+      view.setInt16(offset, intSample, true);
+      offset += 2;
+    }
+  }
+
+  return new Blob([arrayBuffer], { type: 'audio/wav' });
 }
 
 type PlatformKey = 'spotify' | 'apple' | 'youtube' | 'tidal' | 'pandora';
@@ -139,97 +191,226 @@ export default function VaultPage() {
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [streamModalTrack, setStreamModalTrack] = useState<any | null>(null);
 
-  // Ringtone / Snippet Clipper modal state
+  // Ringtone Clipper state
   const [ringtoneModalTrack, setRingtoneModalTrack] = useState<any | null>(null);
   const [clipStartSec, setClipStartSec] = useState<number>(0);
   const [clipDurationSec, setClipDurationSec] = useState<number>(20);
-  const [audioDurationSec, setAudioDurationSec] = useState<number>(180);
+  const [trackDurationSec, setTrackDurationSec] = useState<number>(180);
+  const [decodingStatus, setDecodingStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [clipperError, setClipperError] = useState<string>('');
   const [isPreviewPlaying, setIsPreviewPlaying] = useState<boolean>(false);
-  const [copiedClipLink, setCopiedClipLink] = useState<boolean>(false);
-  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [exportStatusMsg, setExportStatusMsg] = useState<string>('');
 
-  const stopClipPreview = () => {
-    if (previewAudioRef.current) {
-      previewAudioRef.current.pause();
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const decodedBufferRef = useRef<AudioBuffer | null>(null);
+  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
+
+  const stopPreviewPlayback = () => {
+    if (sourceNodeRef.current) {
+      try {
+        sourceNodeRef.current.stop();
+      } catch {
+        // Ignore already stopped source node
+      }
+      sourceNodeRef.current.disconnect();
+      sourceNodeRef.current = null;
     }
     setIsPreviewPlaying(false);
   };
 
-  const openRingtoneModal = (track: any) => {
-    stopClipPreview();
+  const resetClipperSession = () => {
+    stopPreviewPlayback();
+    decodedBufferRef.current = null;
     setClipStartSec(0);
     setClipDurationSec(20);
-    setAudioDurationSec(180);
-    setCopiedClipLink(false);
-    setRingtoneModalTrack(track);
+    setTrackDurationSec(180);
+    setDecodingStatus('idle');
+    setClipperError('');
+    setExportStatusMsg('');
   };
 
   const closeRingtoneModal = () => {
-    stopClipPreview();
+    resetClipperSession();
     setRingtoneModalTrack(null);
   };
 
-  useEffect(() => {
-    const audioEl = previewAudioRef.current;
-    if (!audioEl || !ringtoneModalTrack) return;
-
-    const handleLoadedMetadata = () => {
-      if (Number.isFinite(audioEl.duration) && audioEl.duration > 0) {
-        setAudioDurationSec(Math.floor(audioEl.duration));
-      }
-    };
-
-    const handleTimeUpdate = () => {
-      const endSec = clipStartSec + clipDurationSec;
-      if (audioEl.currentTime >= endSec) {
-        audioEl.pause();
-        audioEl.currentTime = clipStartSec;
-        setIsPreviewPlaying(false);
-      }
-    };
-
-    const handleEnded = () => {
-      setIsPreviewPlaying(false);
-    };
-
-    audioEl.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audioEl.addEventListener('timeupdate', handleTimeUpdate);
-    audioEl.addEventListener('ended', handleEnded);
-
-    return () => {
-      audioEl.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audioEl.removeEventListener('timeupdate', handleTimeUpdate);
-      audioEl.removeEventListener('ended', handleEnded);
-    };
-  }, [ringtoneModalTrack, clipStartSec, clipDurationSec]);
-
-  const toggleClipPreview = async () => {
-    const audioEl = previewAudioRef.current;
-    if (!audioEl) return;
-
-    if (isPreviewPlaying) {
-      audioEl.pause();
-      setIsPreviewPlaying(false);
+  const loadAndDecodeTrack = async (track: any) => {
+    const audioUrl = getTrackAudioUrl(track);
+    if (!audioUrl) {
+      setDecodingStatus('error');
+      setClipperError('No audio file path found for this track.');
       return;
     }
 
+    setDecodingStatus('loading');
+    setClipperError('');
+    setExportStatusMsg('');
+    decodedBufferRef.current = null;
+
     try {
-      audioEl.currentTime = Math.min(clipStartSec, Math.max(0, (audioEl.duration || audioDurationSec) - 1));
-      await audioEl.play();
-      setIsPreviewPlaying(true);
-    } catch (err) {
-      console.error('Clip preview playback error:', err);
-      setIsPreviewPlaying(false);
+      const response = await fetch(audioUrl, { mode: 'cors' });
+      if (!response.ok) {
+        throw new Error(`Could not fetch track audio (HTTP ${response.status}).`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const AudioContextCtor =
+        window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new AudioContextCtor();
+      }
+      if (audioCtxRef.current.state === 'suspended') {
+        await audioCtxRef.current.resume();
+      }
+
+      const decoded = await audioCtxRef.current.decodeAudioData(arrayBuffer.slice(0));
+      decodedBufferRef.current = decoded;
+      const totalSec = Math.max(1, Math.floor(decoded.duration));
+      setTrackDurationSec(totalSec);
+      setClipStartSec((prev) => Math.min(prev, Math.max(0, totalSec - clipDurationSec)));
+      setDecodingStatus('ready');
+    } catch (err: any) {
+      console.error('Ringtone decode error:', err);
+      setDecodingStatus('error');
+      setClipperError(
+        err?.message ||
+          'Unable to load or decode audio in the browser. Check that CORS is enabled on the v2-audio-vault bucket.'
+      );
     }
   };
 
-  const handleCopyClipLink = () => {
+  const openRingtoneModal = (track: any) => {
+    resetClipperSession();
+    setRingtoneModalTrack(track);
+    void loadAndDecodeTrack(track);
+  };
+
+  useEffect(() => {
+    return () => {
+      stopPreviewPlayback();
+      if (audioCtxRef.current) {
+        void audioCtxRef.current.close();
+        audioCtxRef.current = null;
+      }
+    };
+  }, []);
+
+  const createSlicedAudioBuffer = (startSec: number, durationSec: number): AudioBuffer | null => {
+    const fullBuffer = decodedBufferRef.current;
+    const ctx = audioCtxRef.current;
+    if (!fullBuffer || !ctx) return null;
+
+    const sampleRate = fullBuffer.sampleRate;
+    const startSample = Math.max(0, Math.min(fullBuffer.length - 1, Math.floor(startSec * sampleRate)));
+    const sliceSamples = Math.max(
+      1,
+      Math.min(fullBuffer.length - startSample, Math.floor(durationSec * sampleRate))
+    );
+
+    const slicedBuffer = ctx.createBuffer(fullBuffer.numberOfChannels, sliceSamples, sampleRate);
+    for (let ch = 0; ch < fullBuffer.numberOfChannels; ch++) {
+      const sourceChannel = fullBuffer.getChannelData(ch);
+      const targetChannel = slicedBuffer.getChannelData(ch);
+      targetChannel.set(sourceChannel.subarray(startSample, startSample + sliceSamples));
+    }
+
+    return slicedBuffer;
+  };
+
+  const handleTogglePreview = async () => {
+    if (isPreviewPlaying) {
+      stopPreviewPlayback();
+      return;
+    }
+
+    const AudioContextCtor =
+      window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new AudioContextCtor();
+    }
+    if (audioCtxRef.current.state === 'suspended') {
+      await audioCtxRef.current.resume();
+    }
+
+    const sliced = createSlicedAudioBuffer(clipStartSec, clipDurationSec);
+    if (!sliced || !audioCtxRef.current) {
+      setClipperError('Clip audio is not ready yet.');
+      return;
+    }
+
+    stopPreviewPlayback();
+
+    const source = audioCtxRef.current.createBufferSource();
+    source.buffer = sliced;
+    source.connect(audioCtxRef.current.destination);
+    source.onended = () => {
+      setIsPreviewPlaying(false);
+      sourceNodeRef.current = null;
+    };
+
+    sourceNodeRef.current = source;
+    source.start();
+    setIsPreviewPlaying(true);
+  };
+
+  const handleExportClip = async () => {
     if (!ringtoneModalTrack) return;
-    const shareUrl = buildTimestampShareUrl(ringtoneModalTrack, clipStartSec);
-    if (!shareUrl || typeof navigator === 'undefined' || !navigator.clipboard) return;
-    navigator.clipboard.writeText(shareUrl);
-    setCopiedClipLink(true);
-    setTimeout(() => setCopiedClipLink(false), 2500);
+    setIsExporting(true);
+    setExportStatusMsg('');
+    setClipperError('');
+
+    try {
+      const sliced = createSlicedAudioBuffer(clipStartSec, clipDurationSec);
+      if (!sliced) {
+        throw new Error('Decoded track audio is not ready yet.');
+      }
+
+      const wavBlob = audioBufferToWavBlob(sliced);
+      const fileName = `${sanitizeFileName(ringtoneModalTrack.title)}-${clipStartSec}s-${clipDurationSec}s.wav`;
+      const clipFile = new File([wavBlob], fileName, { type: 'audio/wav' });
+
+      // Use native mobile Share Sheet when files are supported (great for iOS Files / Voice Memos)
+      if (
+        typeof navigator !== 'undefined' &&
+        typeof navigator.share === 'function' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [clipFile] })
+      ) {
+        try {
+          await navigator.share({
+            files: [clipFile],
+            title: `${ringtoneModalTrack.title} (${clipDurationSec}s Clip)`,
+          });
+          setExportStatusMsg(`Trimmed ${clipDurationSec}s clip (${fileName}) shared/saved.`);
+          return;
+        } catch (shareErr: any) {
+          if (shareErr?.name === 'AbortError') {
+            setExportStatusMsg('Share sheet closed before saving.');
+            return;
+          }
+          // Fall through to standard file download if share sheet fails
+        }
+      }
+
+      const objectUrl = URL.createObjectURL(wavBlob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
+
+      setExportStatusMsg(`Trimmed ${clipDurationSec}s clip (${fileName}) ready.`);
+    } catch (err: any) {
+      console.error('Clip export error:', err);
+      setClipperError(err?.message || 'Could not export trimmed clip.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleVaultLookup = async (e: React.FormEvent) => {
@@ -264,8 +445,8 @@ export default function VaultPage() {
 
   const activeStreamPlatforms = streamModalTrack ? getStreamingPlatforms(streamModalTrack) : [];
   const ringtoneArtworkUrl = ringtoneModalTrack ? getTrackArtworkUrl(ringtoneModalTrack) : null;
-  const ringtoneAudioUrl = ringtoneModalTrack ? getTrackDownloadUrl(ringtoneModalTrack) : null;
-  const maxStartSec = Math.max(0, audioDurationSec - clipDurationSec);
+  const maxStartSec = Math.max(0, trackDurationSec - clipDurationSec);
+  const effectiveDuration = Math.min(clipDurationSec, trackDurationSec);
 
   return (
     <div className="min-h-screen bg-[#121212] text-white flex flex-col justify-between touch-manipulation selection:bg-[#ff8c00] selection:text-black">
@@ -391,7 +572,7 @@ export default function VaultPage() {
               <div className="space-y-3">
                 {tracks.map((track, idx) => {
                   const artworkUrl = getTrackArtworkUrl(track);
-                  const downloadUrl = getTrackDownloadUrl(track);
+                  const downloadUrl = getTrackAudioUrl(track);
 
                   return (
                     <div
@@ -458,7 +639,7 @@ export default function VaultPage() {
                             type="button"
                             onClick={() => openRingtoneModal(track)}
                             className="bg-[#191524] hover:bg-[#221c33] text-[#ddd6fe] border border-[#352b4a] hover:border-[#a78bfa]/60 font-bold px-3 py-2 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                            title="Preview Hook & Save Ringtone"
+                            title="Slice & Export Ringtone Clip"
                           >
                             <svg
                               className="w-3.5 h-3.5 text-[#a78bfa] flex-shrink-0"
@@ -536,7 +717,7 @@ export default function VaultPage() {
         )}
       </section>
 
-      {/* Ringtone Snippet Preview & Save Modal */}
+      {/* Ringtone Clipper Modal */}
       {ringtoneModalTrack && (
         <div
           onClick={closeRingtoneModal}
@@ -561,7 +742,7 @@ export default function VaultPage() {
                 </div>
                 <div className="min-w-0">
                   <span className="text-[10px] text-[#a78bfa] font-bold uppercase tracking-wider block">
-                    Ringtone & Hook Preview
+                    Ringtone Clipper
                   </span>
                   <h3 className="font-extrabold text-base text-white truncate">
                     {ringtoneModalTrack.title}
@@ -582,11 +763,19 @@ export default function VaultPage() {
               </button>
             </div>
 
-            {ringtoneAudioUrl && (
-              <audio ref={previewAudioRef} src={ringtoneAudioUrl} preload="metadata" />
+            {decodingStatus === 'loading' && (
+              <div className="bg-[#111] border border-[#262626] rounded-2xl p-4 text-center text-xs text-[#ddd6fe]">
+                Decoding track audio for slicing...
+              </div>
             )}
 
-            {/* Clip Length & Start Time */}
+            {clipperError && (
+              <div className="p-3 bg-red-500/10 border border-red-500 text-red-400 text-xs rounded-xl leading-relaxed">
+                {clipperError}
+              </div>
+            )}
+
+            {/* Clip Length & Start Timestamp */}
             <div className="bg-[#111] border border-[#242424] rounded-2xl p-4 space-y-4">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] font-bold text-[#ccc]">Clip Length</span>
@@ -595,12 +784,13 @@ export default function VaultPage() {
                     <button
                       key={len}
                       type="button"
+                      disabled={decodingStatus !== 'ready'}
                       onClick={() => {
-                        stopClipPreview();
+                        stopPreviewPlayback();
                         setClipDurationSec(len);
-                        setClipStartSec((prev) => Math.min(prev, Math.max(0, audioDurationSec - len)));
+                        setClipStartSec((prev) => Math.min(prev, Math.max(0, trackDurationSec - len)));
                       }}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer disabled:opacity-40 ${
                         clipDurationSec === len
                           ? 'bg-[#221c33] border-[#a78bfa] text-[#ddd6fe]'
                           : 'bg-[#161616] border-[#2a2a2a] text-[#888] hover:text-white'
@@ -614,9 +804,10 @@ export default function VaultPage() {
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-bold text-[#ccc]">Start Time</span>
+                  <span className="font-bold text-[#ccc]">Start Timestamp</span>
                   <span className="text-[#a78bfa] font-mono font-bold">
-                    {formatSeconds(clipStartSec)} → {formatSeconds(Math.min(audioDurationSec, clipStartSec + clipDurationSec))}
+                    {formatSeconds(clipStartSec)} →{' '}
+                    {formatSeconds(Math.min(trackDurationSec, clipStartSec + effectiveDuration))}
                   </span>
                 </div>
                 <input
@@ -624,65 +815,50 @@ export default function VaultPage() {
                   min={0}
                   max={maxStartSec}
                   step={1}
+                  disabled={decodingStatus !== 'ready'}
                   value={Math.min(clipStartSec, maxStartSec)}
                   onChange={(e) => {
-                    stopClipPreview();
+                    stopPreviewPlayback();
                     setClipStartSec(Number(e.target.value));
                   }}
-                  className="w-full accent-[#a78bfa] cursor-pointer"
+                  className="w-full accent-[#a78bfa] cursor-pointer disabled:opacity-40"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={toggleClipPreview}
-                  disabled={!ringtoneAudioUrl}
+                  onClick={handleTogglePreview}
+                  disabled={decodingStatus !== 'ready'}
                   className="bg-[#191524] hover:bg-[#221c33] disabled:opacity-40 text-[#ddd6fe] border border-[#352b4a] font-bold py-2.5 px-3 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  <span>{isPreviewPlaying ? '■ Stop Preview' : '▶ Preview Clip'}</span>
+                  <span>{isPreviewPlaying ? '■ Stop Slice' : '▶ Preview Slice'}</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={handleCopyClipLink}
-                  className="bg-[#181818] hover:bg-[#222] text-white border border-[#2e2e2e] font-bold py-2.5 px-3 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  onClick={handleExportClip}
+                  disabled={decodingStatus !== 'ready' || isExporting}
+                  className="bg-[#a78bfa] hover:bg-[#9370f7] disabled:opacity-40 text-black font-bold py-2.5 px-3 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  <span>{copiedClipLink ? '✓ Link Copied' : 'Copy Clip Link'}</span>
+                  <span>{isExporting ? 'Slicing...' : 'Save / Share Clip'}</span>
                 </button>
               </div>
             </div>
 
-            {/* Save File Action */}
-            {ringtoneAudioUrl && (
-              <a
-                href={ringtoneAudioUrl}
-                download
-                className="w-full bg-[#a78bfa] hover:bg-[#9370f7] text-black font-bold py-3 px-4 rounded-xl text-xs transition-all cursor-pointer flex items-center justify-center gap-2 shadow-[0_0_16px_rgba(167,139,250,0.2)]"
-              >
-                <svg
-                  className="w-4 h-4 text-black flex-shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.4"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                <span>Save Audio to Device / Files</span>
-              </a>
+            {exportStatusMsg && (
+              <div className="p-3 bg-[#191524] border border-[#a78bfa]/40 text-[#ddd6fe] text-xs rounded-xl">
+                {exportStatusMsg}
+              </div>
             )}
 
-            {/* Honest Device Guidance */}
+            {/* Device-Aware Save & Ringtone Guidance */}
             <div className="bg-[#111] border border-[#242424] rounded-2xl p-3.5 text-[11px] text-[#999] space-y-1.5 leading-relaxed">
               <p>
-                <span className="text-white font-bold">iPhone / iOS:</span> Save or share the file directly to <span className="text-[#ddd6fe] font-semibold">Files</span> or <span className="text-[#ddd6fe] font-semibold">Voice Memos</span>. To set it as an active incoming call ringtone on iPhone without a computer, Apple requires bringing the file into <span className="text-white font-semibold">GarageBand</span> and exporting as a ringtone.
+                <span className="text-white font-bold">iPhone / iOS:</span> Saves or shares the trimmed clip directly to <span className="text-[#ddd6fe] font-semibold">Files</span> or <span className="text-[#ddd6fe] font-semibold">Voice Memos</span>. If you want it as a live incoming call ringtone without a computer, Apple requires importing it into <span className="text-white font-semibold">GarageBand</span> and exporting as a ringtone.
               </p>
               <p>
-                <span className="text-white font-bold">Android:</span> Save the audio file to your device and pick it from your phone&apos;s <span className="text-white font-semibold">Sound / Ringtone</span> settings.
+                <span className="text-white font-bold">Android:</span> Saves/downloads the trimmed clip so you can pick it in your phone&apos;s <span className="text-white font-semibold">Sound / Ringtone</span> settings.
               </p>
             </div>
 
