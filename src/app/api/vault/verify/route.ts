@@ -14,7 +14,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-       const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedEmail = String(email).trim().toLowerCase();
 
     const { data: purchases, error } = await supabase
       .from('purchases')
@@ -90,10 +90,65 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ success: true, tracks: purchasedTracks });
+    const artistHandles = Array.from(
+      new Set(
+        purchasedTracks
+          .map((t) => String(t.artist_handle || '').trim().toLowerCase())
+          .filter(Boolean)
+      )
+    );
 
+    const creatorTierMap = new Map<string, 'free' | 'artist' | 'label'>();
+
+    if (artistHandles.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('handle, artist_handle, tier')
+        .or(
+          artistHandles
+            .map(
+              (h) =>
+                `handle.ilike.${h.replace(/[,()]/g, '')},artist_handle.ilike.${h.replace(/[,()]/g, '')}`
+            )
+            .join(',')
+        );
+
+      (profiles || []).forEach((p: any) => {
+        const resolvedTier: 'free' | 'artist' | 'label' =
+          p.tier === 'label' || p.tier === 'artist' ? p.tier : 'free';
+        if (p.handle) {
+          creatorTierMap.set(String(p.handle).trim().toLowerCase(), resolvedTier);
+        }
+        if (p.artist_handle) {
+          creatorTierMap.set(String(p.artist_handle).trim().toLowerCase(), resolvedTier);
+        }
+      });
+    }
+
+    const gatedTracks = purchasedTracks.map((track) => {
+      const handleKey = String(track.artist_handle || '').trim().toLowerCase();
+      const creatorTier = creatorTierMap.get(handleKey) || 'free';
+      const hasPremiumMediaFeatures = creatorTier === 'artist' || creatorTier === 'label';
+
+      return {
+        ...track,
+        creator_tier: creatorTier,
+        can_stream: hasPremiumMediaFeatures,
+        can_clip_ringtone: hasPremiumMediaFeatures,
+        spotify_url: hasPremiumMediaFeatures ? track.spotify_url : null,
+        apple_music_url: hasPremiumMediaFeatures ? track.apple_music_url : null,
+        tidal_url: hasPremiumMediaFeatures ? track.tidal_url : null,
+        youtube_url: hasPremiumMediaFeatures ? track.youtube_url : null,
+        pandora_url: hasPremiumMediaFeatures ? track.pandora_url : null,
+      };
+    });
+
+    return NextResponse.json({ success: true, tracks: gatedTracks });
   } catch (err: any) {
     console.error('Vault verification error:', err);
-    return NextResponse.json({ error: 'Internal server error verifying vault access' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error verifying vault access' },
+      { status: 500 }
+    );
   }
 }
