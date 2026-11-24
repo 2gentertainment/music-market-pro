@@ -570,9 +570,11 @@ export default function VaultPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {tracks.map((track, idx) => {
+                                {tracks.map((track, idx) => {
                   const artworkUrl = getTrackArtworkUrl(track);
                   const downloadUrl = getTrackAudioUrl(track);
+                  const hasPaidMediaPerks =
+                    track?.can_stream !== false && track?.can_clip_ringtone !== false;
 
                   return (
                     <div
@@ -611,55 +613,57 @@ export default function VaultPage() {
                       </div>
 
                       <div className="flex flex-col gap-2 w-full sm:w-[220px] flex-shrink-0">
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setStreamModalTrack(track)}
-                            className="bg-[#222] hover:bg-[#2b2b2b] text-white border border-[#343434] hover:border-[#ff8c00]/50 font-bold px-3 py-2 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                            title="Choose Streaming Platform"
-                          >
-                            <svg
-                              className="w-3.5 h-3.5 text-[#ff8c00] flex-shrink-0"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.2"
-                              viewBox="0 0 24 24"
-                              aria-hidden="true"
+                        {hasPaidMediaPerks && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setStreamModalTrack(track)}
+                              className="bg-[#222] hover:bg-[#2b2b2b] text-white border border-[#343434] hover:border-[#ff8c00]/50 font-bold px-3 py-2 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                              title="Choose Streaming Platform"
                             >
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 14.5a5 5 0 0 1 0-7" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 17.5a9 9 0 0 1 0-13" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.5 7.5a5 5 0 0 1 0 7" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 4.5a9 9 0 0 1 0 13" />
-                              <circle cx="12" cy="11" r="1.5" fill="currentColor" />
-                            </svg>
-                            <span>Stream</span>
-                          </button>
+                              <svg
+                                className="w-3.5 h-3.5 text-[#ff8c00] flex-shrink-0"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.2"
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 14.5a5 5 0 0 1 0-7" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 17.5a9 9 0 0 1 0-13" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.5 7.5a5 5 0 0 1 0 7" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 4.5a9 9 0 0 1 0 13" />
+                                <circle cx="12" cy="11" r="1.5" fill="currentColor" />
+                              </svg>
+                              <span>Stream</span>
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => openRingtoneModal(track)}
-                            className="bg-[#191524] hover:bg-[#221c33] text-[#ddd6fe] border border-[#352b4a] hover:border-[#a78bfa]/60 font-bold px-3 py-2 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                            title="Slice & Export Ringtone Clip"
-                          >
-                            <svg
-                              className="w-3.5 h-3.5 text-[#a78bfa] flex-shrink-0"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.1"
-                              viewBox="0 0 24 24"
-                              aria-hidden="true"
+                            <button
+                              type="button"
+                              onClick={() => openRingtoneModal(track)}
+                              className="bg-[#191524] hover:bg-[#221c33] text-[#ddd6fe] border border-[#352b4a] hover:border-[#a78bfa]/60 font-bold px-3 py-2 rounded-xl text-xs whitespace-nowrap transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                              title="Slice & Export Ringtone Clip"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 0 0-4-5.66V4a2 2 0 1 0-4 0v1.34A6 6 0 0 0 6 11v3.2a2 2 0 0 1-.6 1.4L4 17h5"
-                              />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 17a2.5 2.5 0 0 0 5 0" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M20 7.5a4.5 4.5 0 0 1 0 5" />
-                            </svg>
-                            <span>Ringtone</span>
-                          </button>
-                        </div>
+                              <svg
+                                className="w-3.5 h-3.5 text-[#a78bfa] flex-shrink-0"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.1"
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 0 0-4-5.66V4a2 2 0 1 0-4 0v1.34A6 6 0 0 0 6 11v3.2a2 2 0 0 1-.6 1.4L4 17h5"
+                                />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9.5 17a2.5 2.5 0 0 0 5 0" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7.5a4.5 4.5 0 0 1 0 5" />
+                              </svg>
+                              <span>Ringtone</span>
+                            </button>
+                          </div>
+                        )}
 
                         {downloadUrl && (
                           <a
@@ -687,6 +691,7 @@ export default function VaultPage() {
                     </div>
                   );
                 })}
+
               </div>
             )}
 
