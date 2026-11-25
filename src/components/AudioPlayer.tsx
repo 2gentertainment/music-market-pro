@@ -212,6 +212,99 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     return () => clearInterval(interval);
   }, [currentTrack?.id]);
 
+  // Sync iOS Lock Screen / Control Center metadata & Next/Prev hardware controls
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    const track = currentTrack;
+    const handleLabel = artistHandle || track?.artist_handle || 'Music Market';
+    const artworkUrl = track?.artwork_url || FALLBACK_COVER_ART;
+
+    try {
+      if (!track) {
+        navigator.mediaSession.metadata = null;
+        return;
+      }
+
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: track.title || 'Untitled Track',
+        artist: `@${handleLabel}`,
+        album: track.album_name || 'Music Market',
+        artwork: [
+          { src: artworkUrl, sizes: '96x96', type: 'image/jpeg' },
+          { src: artworkUrl, sizes: '128x128', type: 'image/jpeg' },
+          { src: artworkUrl, sizes: '192x192', type: 'image/jpeg' },
+          { src: artworkUrl, sizes: '256x256', type: 'image/jpeg' },
+          { src: artworkUrl, sizes: '512x512', type: 'image/jpeg' },
+        ],
+      });
+    } catch {
+      // Ignore MediaMetadata errors on unsupported browsers
+    }
+  }, [currentTrack, artistHandle]);
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+  }, [isPlaying]);
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    const setHandler = (
+      action: MediaSessionAction,
+      handler: MediaSessionActionHandler | null
+    ) => {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch {
+        // Unsupported action on current browser/OS
+      }
+    };
+
+    setHandler('play', () => {
+      if (!isPlayingRef.current) {
+        safePlay(true);
+      }
+    });
+
+    setHandler('pause', () => {
+      if (audioRef.current && !audioRef.current.paused) {
+        clearStallTimer();
+        audioRef.current.pause();
+        setIsPlaying(false);
+      }
+    });
+
+    setHandler('nexttrack', () => {
+      nextTrack(true);
+    });
+
+    setHandler('previoustrack', () => {
+      prevTrack(true);
+    });
+
+    setHandler('seekto', (details) => {
+      if (
+        audioRef.current &&
+        typeof details.seekTime === 'number' &&
+        !isNaN(details.seekTime)
+      ) {
+        audioRef.current.currentTime = details.seekTime;
+        setCurrentTime(details.seekTime);
+      }
+    });
+
+    return () => {
+      setHandler('play', null);
+      setHandler('pause', null);
+      setHandler('nexttrack', null);
+      setHandler('previoustrack', null);
+      setHandler('seekto', null);
+    };
+  }, []);
+
   useEffect(() => {
     if (isShuffled) {
       resetShufflePool(currentIndex, activePlaylist.length);
@@ -378,11 +471,28 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
     setSubscribeBoxOpen(false);
 
     if (audioRef.current && track?.audio_file_path) {
-      audioRef.current.pause();
-      audioRef.current.src = track.audio_file_path;
-      audioRef.current.load();
+      const el = audioRef.current;
+      el.src = track.audio_file_path;
+      el.load();
       if (shouldPlay) {
-        safePlay(false);
+        setIsPlaying(true);
+        const attemptPlay = () => {
+          el.play().catch((err) => {
+            if (err?.name === 'AbortError') return;
+            if (document.visibilityState === 'visible') {
+              setIsPlaying(false);
+            }
+          });
+        };
+        attemptPlay();
+        // Backup trigger once enough data is buffered if backgrounded on iOS
+        const onCanPlay = () => {
+          el.removeEventListener('canplay', onCanPlay);
+          if (isPlayingRef.current && el.paused) {
+            attemptPlay();
+          }
+        };
+        el.addEventListener('canplay', onCanPlay, { once: true });
       } else {
         setIsPlaying(false);
       }
@@ -479,7 +589,13 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
       audioRef.current.currentTime = 0;
       safePlay(false);
     } else {
-      nextTrack(true);
+      const playlist = activePlaylistRef.current;
+      if (playlist.length > 0) {
+        setIsPlaying(true);
+        nextTrack(true);
+      } else {
+        setIsPlaying(false);
+      }
     }
   }
 
