@@ -356,119 +356,6 @@ export default function LabelStorefront({ profile, tracks, labelHandle }: LabelS
     };
   }, []);
 
-  const stepTrackRef = useRef<(direction: 'prev' | 'next') => void>(() => {});
-  const togglePlayRef = useRef<(track: Track) => void>(() => {});
-  const currentTrackRef = useRef<Track | null>(null);
-  const audioInstanceRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    currentTrackRef.current = currentTrack;
-  }, [currentTrack]);
-
-  useEffect(() => {
-    audioInstanceRef.current = audioInstance;
-  }, [audioInstance]);
-
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-
-    const track = currentTrack;
-    const rawHandle = track?.artist_handle?.trim();
-    const cleanLabel = labelHandle?.trim().toLowerCase();
-    const isLabelHandle =
-      Boolean(rawHandle) &&
-      Boolean(cleanLabel) &&
-      rawHandle!.toLowerCase() === cleanLabel;
-    const resolvedHandle =
-      (!rawHandle || isLabelHandle
-        ? mainArtistHandle || firstRosterArtist?.handle || labelHandle
-        : rawHandle) || 'Music Market';
-
-    const artworkUrl =
-      track?.artwork_url ||
-      'https://27593217-482041110881488807.preview.editmysite.com/uploads/2/7/5/9/27593217/box-logo_orig.jpg';
-
-    try {
-      if (!track) {
-        navigator.mediaSession.metadata = null;
-        return;
-      }
-
-      navigator.mediaSession.metadata = new MediaMetadata({
-        title: track.title || 'Untitled Track',
-        artist: `@${resolvedHandle}`,
-        album:
-          profile?.display_name ||
-          (track.album_name ? track.album_name.split(',')[0].trim() : labelHandle),
-        artwork: [
-          { src: artworkUrl, sizes: '96x96', type: 'image/jpeg' },
-          { src: artworkUrl, sizes: '128x128', type: 'image/jpeg' },
-          { src: artworkUrl, sizes: '192x192', type: 'image/jpeg' },
-          { src: artworkUrl, sizes: '256x256', type: 'image/jpeg' },
-          { src: artworkUrl, sizes: '512x512', type: 'image/jpeg' },
-        ],
-      });
-    } catch {
-      // Ignore MediaMetadata errors on unsupported browsers
-    }
-  }, [currentTrack, labelHandle, mainArtistHandle, firstRosterArtist, profile?.display_name]);
-
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-  }, [isPlaying]);
-
-  useEffect(() => {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-
-    const setHandler = (
-      action: MediaSessionAction,
-      handler: MediaSessionActionHandler | null
-    ) => {
-      try {
-        navigator.mediaSession.setActionHandler(action, handler);
-      } catch {
-        // Unsupported action on current browser/OS
-      }
-    };
-
-    setHandler('play', () => {
-      const track = currentTrackRef.current;
-      const audio = audioInstanceRef.current;
-      if (track && audio && audio.paused && audio.src) {
-        audio
-          .play()
-          .then(() => setIsPlaying(true))
-          .catch(() => togglePlayRef.current(track));
-      } else if (track) {
-        togglePlayRef.current(track);
-      }
-    });
-
-    setHandler('pause', () => {
-      const audio = audioInstanceRef.current;
-      if (audio && !audio.paused) {
-        audio.pause();
-        setIsPlaying(false);
-      }
-    });
-
-    setHandler('nexttrack', () => {
-      stepTrackRef.current('next');
-    });
-
-    setHandler('previoustrack', () => {
-      stepTrackRef.current('prev');
-    });
-
-    return () => {
-      setHandler('play', null);
-      setHandler('pause', null);
-      setHandler('nexttrack', null);
-      setHandler('previoustrack', null);
-    };
-  }, []);
-
 
     function getVisitorId(): string {
     if (typeof window === 'undefined') return 'server';
@@ -617,9 +504,6 @@ export default function LabelStorefront({ profile, tracks, labelHandle }: LabelS
     newAudio.onended = () => setIsPlaying(false);
   };
 
-
-  togglePlayRef.current = togglePlayTrack;
-  stepTrackRef.current = handleStepTrack;
 
   togglePlayRef.current = togglePlayTrack;
   stepTrackRef.current = handleStepTrack;
