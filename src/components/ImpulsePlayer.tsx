@@ -366,7 +366,7 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
   );
 
   return (
-    <div className="min-h-screen w-full bg-neutral-950 text-white flex flex-col items-center justify-center p-4 touch-manipulation overflow-x-hidden selection:bg-[#ff8c00] selection:text-black">
+    <div className="h-[100dvh] w-full bg-neutral-950 text-white flex flex-col items-center justify-center p-3 sm:p-4 touch-manipulation overflow-hidden selection:bg-[#ff8c00] selection:text-black">
       <style jsx>{`
         @keyframes shine {
           0% { transform: translateX(-150%); }
@@ -377,7 +377,7 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
         }
       `}</style>
 
-      <div className="w-full max-w-[420px] mx-auto shrink-0 bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-2xl flex flex-col items-center space-y-5 relative overflow-hidden touch-manipulation">
+      <div className="w-full max-w-[420px] max-h-full mx-auto bg-neutral-900 border border-neutral-800 rounded-3xl p-4 sm:p-6 shadow-2xl flex flex-col items-center justify-between gap-3 sm:gap-4 relative overflow-hidden touch-manipulation">
         
         {/* Header Branding */}
         <div className="text-center">
@@ -387,7 +387,7 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
         </div>
 
         {/* Large Artwork with Play Overlay */}
-        <div className="relative group w-60 h-60 rounded-2xl overflow-hidden shadow-2xl border border-neutral-800 bg-neutral-950 cursor-pointer" onClick={togglePlay}>
+        <div className="relative group w-44 h-44 sm:w-60 sm:h-60 shrink-0 rounded-2xl overflow-hidden shadow-2xl border border-neutral-800 bg-neutral-950 cursor-pointer" onClick={togglePlay}>
           <img 
             src={track.artwork_url || 'https://27593217-482041110881488807.preview.editmysite.com/uploads/2/7/5/9/27593217/logo-box_orig.jpg'} 
             alt={track.title} 
