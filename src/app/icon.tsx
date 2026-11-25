@@ -1,9 +1,23 @@
 import { ImageResponse } from 'next/og';
 
-export const size = { width: 48, height: 48 };
+export const size = {
+  width: 64,
+  height: 64,
+};
+
 export const contentType = 'image/png';
 
 export default function Icon() {
+  const bars = [
+    { height: 34, color: '#ff8c00' },
+    { height: 22, color: '#ff8c00' },
+    { height: 15, color: '#ff8c00' },
+    { height: 10, color: '#ff8c00' },
+    { height: 15, color: '#ff8c00' },
+    { height: 27, color: '#2ecc71' },
+    { height: 34, color: '#ff8c00' },
+  ];
+
   return new ImageResponse(
     (
       <div
@@ -11,24 +25,30 @@ export default function Icon() {
           width: '100%',
           height: '100%',
           background: '#000000',
-          borderRadius: '11px',
+          borderRadius: '14px',
           border: '2px solid #262626',
           display: 'flex',
           alignItems: 'flex-end',
           justifyContent: 'center',
+          paddingBottom: '15px',
           gap: '3px',
-          padding: '10px 8px',
         }}
       >
-        <div style={{ width: '3px', height: '26px', background: '#FF8C00', borderRadius: '2px' }} />
-        <div style={{ width: '3px', height: '18px', background: '#FF8C00', borderRadius: '2px' }} />
-        <div style={{ width: '3px', height: '13px', background: '#FF8C00', borderRadius: '2px' }} />
-        <div style={{ width: '3px', height: '9px', background: '#FF8C00', borderRadius: '2px' }} />
-        <div style={{ width: '3px', height: '13px', background: '#FF8C00', borderRadius: '2px' }} />
-        <div style={{ width: '3px', height: '22px', background: '#2ECC71', borderRadius: '2px' }} />
-        <div style={{ width: '3px', height: '26px', background: '#FF8C00', borderRadius: '2px' }} />
+        {bars.map((bar, idx) => (
+          <div
+            key={idx}
+            style={{
+              width: '3.5px',
+              height: `${bar.height}px`,
+              background: bar.color,
+              borderRadius: '2px',
+            }}
+          />
+        ))}
       </div>
     ),
-    { ...size }
+    {
+      ...size,
+    }
   );
 }
