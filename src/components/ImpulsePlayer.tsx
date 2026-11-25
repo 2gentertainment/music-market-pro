@@ -3,13 +3,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase as _supabase } from '@/utils/supabase';
 
+
+
 interface ImpulsePlayerProps {
   trackId: string | number;
 }
 
 export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
-
+  
   const [track, setTrack] = useState<any>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -17,16 +19,18 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
   const [loading, setLoading] = useState(true);
   const [resolvedArtistHandle, setResolvedArtistHandle] = useState<string | null>(null);
 
+
   useEffect(() => {
     async function fetchSingleTrack() {
       setLoading(true);
       try {
-        const { data, error } = await _supabase
+           const { data, error } = await _supabase
           .from('tracks_pro')
           .select('*')
           .eq('id', trackId)
           .is('deleted_at', null)
           .maybeSingle();
+
 
         if (error) throw error;
 
@@ -41,7 +45,7 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
             artUrl = _supabase.storage.from('v2-cover-art').getPublicUrl(data.artwork_file_path).data.publicUrl;
           }
 
-          setTrack({
+                    setTrack({
             ...data,
             audio_file_path: audioUrl,
             artwork_url: artUrl,
@@ -51,7 +55,7 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
           if (!rawHandle) {
             setResolvedArtistHandle(null);
           } else {
-            const { data: matchedProfile } = await _supabase
+                        const { data: matchedProfile } = await _supabase
               .from('profiles')
               .select('id, handle, artist_handle, tier, main_artist_profile_id')
               .or(`handle.ilike.${rawHandle},artist_handle.ilike.${rawHandle}`)
@@ -103,9 +107,11 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
             } else {
               setResolvedArtistHandle(rawHandle);
             }
+
           }
         }
       } catch (err) {
+
         console.error('Error fetching impulse drop track:', err);
       } finally {
         setLoading(false);
@@ -117,7 +123,7 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
     }
   }, [trackId]);
 
-  function getVisitorId(): string {
+    function getVisitorId(): string {
     if (typeof window === 'undefined') return 'server';
     let vid = localStorage.getItem('mm_visitor_id');
     if (!vid) {
@@ -152,6 +158,104 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
       console.error(`Failed to log ${eventType} event on ImpulsePlayer:`, err);
     }
   }
+
+  const syncImpulseMediaSession = (
+    currentTrack: any,
+    handle: string | null,
+    playingState: boolean
+  ) => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    try {
+      if (!currentTrack) {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.playbackState = 'none';
+        return;
+      }
+
+      const displayHandle =
+        handle || currentTrack.artist_handle?.trim() || '2g-entertainment';
+      const artworkUrl =
+        currentTrack.artwork_url ||
+        'https://27593217-482041110881488807.preview.editmysite.com/uploads/2/7/5/9/27593217/logo-box_orig.jpg';
+
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentTrack.title || 'Untitled Drop',
+        artist: `@${displayHandle}`,
+        album: currentTrack.album_name || 'Official Single Drop',
+        artwork: [
+          { src: artworkUrl, sizes: '96x96', type: 'image/jpeg' },
+          { src: artworkUrl, sizes: '128x128', type: 'image/jpeg' },
+          { src: artworkUrl, sizes: '192x192', type: 'image/jpeg' },
+          { src: artworkUrl, sizes: '256x256', type: 'image/jpeg' },
+          { src: artworkUrl, sizes: '512x512', type: 'image/jpeg' },
+        ],
+      });
+
+      navigator.mediaSession.playbackState = playingState ? 'playing' : 'paused';
+    } catch {
+      // Ignore MediaMetadata errors on unsupported browsers
+    }
+  };
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    syncImpulseMediaSession(track, resolvedArtistHandle, isPlaying);
+
+    const setHandler = (
+      action: MediaSessionAction,
+      handler: MediaSessionActionHandler | null
+    ) => {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch {
+        // Unsupported action on current browser/OS
+      }
+    };
+
+    setHandler('play', () => {
+      if (audioRef.current && track?.audio_file_path) {
+        audioRef.current
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+            syncImpulseMediaSession(track, resolvedArtistHandle, true);
+            logImpulseEvent('play');
+          })
+          .catch((err) => {
+            if (err?.name !== 'AbortError') {
+              console.error('Impulse mediaSession play error:', err);
+            }
+          });
+      }
+    });
+
+    setHandler('pause', () => {
+      if (audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+        syncImpulseMediaSession(track, resolvedArtistHandle, false);
+      }
+    });
+
+    setHandler('seekto', (details) => {
+      if (
+        audioRef.current &&
+        typeof details.seekTime === 'number' &&
+        !isNaN(details.seekTime)
+      ) {
+        audioRef.current.currentTime = details.seekTime;
+        setCurrentTime(details.seekTime);
+      }
+    });
+
+    return () => {
+      setHandler('play', null);
+      setHandler('pause', null);
+      setHandler('seekto', null);
+    };
+  }, [track, resolvedArtistHandle, isPlaying]);
 
   const togglePlay = () => {
     if (!audioRef.current || !track?.audio_file_path) return;
@@ -205,17 +309,16 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
       const response = await fetch('/api/checkout/track', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: [
-            {
-              itemType: 'single',
-              trackId: String(track.id),
-              price: track.price,
-              title: track.title,
-              artistHandle: resolvedArtistHandle || track.artist_handle,
-            },
-          ],
-        }),
+        body: JSON.stringify({ 
+          items: [{ 
+            itemType: 'single', 
+            trackId: String(track.id), 
+            price: track.price, 
+            title: track.title,
+            artistHandle: resolvedArtistHandle || track.artist_handle
+
+          }]
+        })
       });
       const responseText = await response.text();
       let session;
@@ -240,7 +343,7 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
 
   if (loading) {
     return (
-      <div className="h-[100dvh] w-full overflow-hidden bg-neutral-950 text-white flex items-center justify-center p-4 text-sm text-neutral-400">
+      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center text-sm text-neutral-400">
         Loading drop...
       </div>
     );
@@ -248,18 +351,22 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
 
   if (!track) {
     return (
-      <div className="h-[100dvh] w-full overflow-hidden bg-neutral-950 text-white flex items-center justify-center p-4 text-sm text-neutral-400">
+      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center text-sm text-neutral-400">
         Track drop not found or unavailable.
       </div>
     );
   }
 
   const hasStreamLinks = Boolean(
-    track.spotify_url || track.apple_music_url || track.tidal_url || track.youtube_url || track.pandora_url
+    track.spotify_url?.trim() ||
+      track.apple_music_url?.trim() ||
+      track.tidal_url?.trim() ||
+      track.youtube_url?.trim() ||
+      track.pandora_url?.trim()
   );
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden bg-neutral-950 text-white flex flex-col items-center justify-center p-4 touch-manipulation selection:bg-[#ff8c00] selection:text-black">
+    <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center justify-center p-4 touch-manipulation selection:bg-[#ff8c00] selection:text-black">
       <style jsx>{`
         @keyframes shine {
           0% { transform: translateX(-150%); }
@@ -270,60 +377,51 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
         }
       `}</style>
 
-      <div className="w-full max-w-[420px] max-h-[94dvh] bg-neutral-900 border border-neutral-800 rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col items-center justify-center space-y-4 relative overflow-hidden touch-manipulation">
+      <div className="w-full max-w-[420px] bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-2xl flex flex-col items-center space-y-5 relative overflow-hidden touch-manipulation">
+        
         {/* Header Branding */}
-        <div className="text-center shrink-0">
+        <div className="text-center">
           <span className="text-[10px] bg-[#ff8c00]/15 border border-[#ff8c00]/40 text-[#ff8c00] px-3.5 py-1 rounded-full font-extrabold uppercase tracking-widest shadow-[0_0_15px_rgba(255,140,0,0.25)]">
             Official Single Drop
           </span>
         </div>
 
         {/* Large Artwork with Play Overlay */}
-        <div
-          className="relative group w-48 h-48 sm:w-56 sm:h-56 rounded-2xl overflow-hidden shadow-2xl border border-neutral-800 bg-neutral-950 cursor-pointer shrink-0"
-          onClick={togglePlay}
-        >
-          <img
-            src={
-              track.artwork_url ||
-              'https://27593217-482041110881488807.preview.editmysite.com/uploads/2/7/5/9/27593217/logo-box_orig.jpg'
-            }
-            alt={track.title}
+        <div className="relative group w-60 h-60 rounded-2xl overflow-hidden shadow-2xl border border-neutral-800 bg-neutral-950 cursor-pointer" onClick={togglePlay}>
+          <img 
+            src={track.artwork_url || 'https://27593217-482041110881488807.preview.editmysite.com/uploads/2/7/5/9/27593217/logo-box_orig.jpg'} 
+            alt={track.title} 
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity">
             <div className="w-16 h-16 rounded-full bg-[#ff8c00] text-neutral-950 flex items-center justify-center shadow-xl shadow-[#ff8c00]/40">
               {!isPlaying ? (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                </svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               ) : (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="6" y="4" width="4" height="16"></rect>
-                  <rect x="14" y="4" width="4" height="16"></rect>
-                </svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
               )}
             </div>
           </div>
         </div>
 
-        {/* Track Title & Artist Handle */}
-        <div className="text-center space-y-0.5 w-full truncate px-2 shrink-0">
+                {/* Track Title & Artist Handle */}
+        <div className="text-center space-y-1 w-full truncate px-2">
           <h1 className="text-xl font-extrabold text-white truncate">{track.title}</h1>
           <p className="text-xs text-[#ff8c00] font-bold">
             @{resolvedArtistHandle || track.artist_handle?.trim() || '2g-entertainment'}
           </p>
         </div>
 
+
         {/* Progress Bar */}
-        <div className="w-full space-y-1 px-1 shrink-0">
-          <input
-            type="range"
+        <div className="w-full space-y-1.5 px-1">
+          <input 
+            type="range" 
             className="w-full h-1.5 bg-neutral-800 rounded-lg outline-none cursor-pointer accent-[#ff8c00]"
-            value={currentTime}
-            min={0}
-            max={duration || 100}
-            step={0.1}
+            value={currentTime} 
+            min={0} 
+            max={duration || 100} 
+            step={0.1} 
             onChange={handleSeek}
           />
           <div className="flex justify-between text-[11px] text-neutral-500 font-medium">
@@ -334,11 +432,11 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
 
         {/* STREAMING PLATFORM BUTTONS (Strict 2-Column Grid) */}
         {hasStreamLinks && (
-          <div className="w-full space-y-1.5 shrink-0">
+          <div className="w-full space-y-2">
             <span className="text-[10px] text-neutral-400 uppercase tracking-widest font-extrabold block text-center">
               Stream On Platforms
             </span>
-            <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-2">
               {[
                 { label: 'Spotify', url: track.spotify_url },
                 { label: 'Apple Music', url: track.apple_music_url },
@@ -354,32 +452,47 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
                     target="_blank"
                     rel="noreferrer"
                     onClick={() => logImpulseEvent('outbound_stream', { platform: item.label })}
-                    className="relative overflow-hidden p-2 rounded-xl bg-neutral-950 border border-[#ff8c00]/60 hover:border-[#ff8c00] text-neutral-100 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(255,140,0,0.18)] group"
+                    className="relative overflow-hidden p-2.5 rounded-xl bg-neutral-950 border border-[#ff8c00]/60 hover:border-[#ff8c00] text-neutral-100 hover:text-white transition-all text-xs font-bold flex items-center justify-center gap-1.5 shadow-[0_0_12px_rgba(255,140,0,0.18)] group"
                   >
                     <span className="absolute inset-0 bg-gradient-to-r from-transparent via-[#ff8c00]/25 to-transparent -translate-x-full group-hover:animate-shine" />
                     {item.label}
                   </a>
                 ))}
             </div>
+
           </div>
         )}
 
         {/* Direct Purchase Button with Continuous Seamless Shine */}
-        <button
+        <button 
           onClick={handleBuyTrack}
-          className="relative overflow-hidden w-full bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-extrabold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/25 transition-all group shrink-0"
+          className="relative overflow-hidden w-full bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-extrabold py-3.5 rounded-2xl text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/25 transition-all group"
         >
           <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent animate-shine pointer-events-none" />
           <span>Buy Master Audio</span>
           <span className="bg-emerald-950/20 px-2.5 py-0.5 rounded-lg text-xs font-black">${track.price}</span>
         </button>
+
       </div>
 
-      <audio
-        ref={audioRef}
+      <audio 
+        ref={audioRef} 
+        preload="metadata"
         src={track.audio_file_path}
-        onTimeUpdate={handleTimeUpdate}
-        onEnded={() => setIsPlaying(false)}
+        onLoadedMetadata={handleTimeUpdate}
+        onPlay={() => {
+          setIsPlaying(true);
+          syncImpulseMediaSession(track, resolvedArtistHandle, true);
+        }}
+        onPause={() => {
+          setIsPlaying(false);
+          syncImpulseMediaSession(track, resolvedArtistHandle, false);
+        }}
+        onTimeUpdate={handleTimeUpdate} 
+        onEnded={() => {
+          setIsPlaying(false);
+          syncImpulseMediaSession(track, resolvedArtistHandle, false);
+        }} 
       />
     </div>
   );
