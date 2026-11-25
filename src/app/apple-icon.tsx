@@ -1,9 +1,23 @@
 import { ImageResponse } from 'next/og';
 
-export const size = { width: 180, height: 180 };
+export const size = {
+  width: 180,
+  height: 180,
+};
+
 export const contentType = 'image/png';
 
 export default function AppleIcon() {
+  const bars = [
+    { height: 96, color: '#ff8c00' },
+    { height: 64, color: '#ff8c00' },
+    { height: 44, color: '#ff8c00' },
+    { height: 28, color: '#ff8c00' },
+    { height: 44, color: '#ff8c00' },
+    { height: 76, color: '#2ecc71' },
+    { height: 96, color: '#ff8c00' },
+  ];
+
   return new ImageResponse(
     (
       <div
@@ -14,19 +28,25 @@ export default function AppleIcon() {
           display: 'flex',
           alignItems: 'flex-end',
           justifyContent: 'center',
-          gap: '10px',
-          padding: '42px 30px',
+          paddingBottom: '42px',
+          gap: '9px',
         }}
       >
-        <div style={{ width: '10px', height: '96px', background: '#FF8C00', borderRadius: '6px' }} />
-        <div style={{ width: '10px', height: '66px', background: '#FF8C00', borderRadius: '6px' }} />
-        <div style={{ width: '10px', height: '48px', background: '#FF8C00', borderRadius: '6px' }} />
-        <div style={{ width: '10px', height: '34px', background: '#FF8C00', borderRadius: '6px' }} />
-        <div style={{ width: '10px', height: '48px', background: '#FF8C00', borderRadius: '6px' }} />
-        <div style={{ width: '10px', height: '80px', background: '#2ECC71', borderRadius: '6px' }} />
-        <div style={{ width: '10px', height: '96px', background: '#FF8C00', borderRadius: '6px' }} />
+        {bars.map((bar, idx) => (
+          <div
+            key={idx}
+            style={{
+              width: '9px',
+              height: `${bar.height}px`,
+              background: bar.color,
+              borderRadius: '4px',
+            }}
+          />
+        ))}
       </div>
     ),
-    { ...size }
+    {
+      ...size,
+    }
   );
 }
