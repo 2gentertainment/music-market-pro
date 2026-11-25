@@ -242,7 +242,11 @@ export default function DynamicStorefrontRouter() {
 
     // 1. SAFE POST-HOOK INTERCEPT FOR ?drop= IMPULSE PLAYER
   if (dropTrackId) {
-    return <ImpulsePlayer trackId={dropTrackId} />;
+    return (
+      <div className="h-[100dvh] w-full bg-neutral-950 flex flex-col items-center justify-center overflow-hidden p-0 touch-manipulation">
+        <ImpulsePlayer trackId={dropTrackId} />
+      </div>
+    );
   }
 
   if (loading) {
