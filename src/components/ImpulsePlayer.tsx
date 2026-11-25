@@ -366,7 +366,7 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
   );
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center justify-center p-4 touch-manipulation selection:bg-[#ff8c00] selection:text-black">
+    <div className="min-h-screen w-full bg-neutral-950 text-white flex flex-col items-center justify-center p-4 touch-manipulation overflow-x-hidden selection:bg-[#ff8c00] selection:text-black">
       <style jsx>{`
         @keyframes shine {
           0% { transform: translateX(-150%); }
@@ -377,7 +377,7 @@ export default function ImpulsePlayer({ trackId }: ImpulsePlayerProps) {
         }
       `}</style>
 
-      <div className="w-full max-w-[420px] bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-2xl flex flex-col items-center space-y-5 relative overflow-hidden touch-manipulation">
+      <div className="w-full max-w-[420px] mx-auto shrink-0 bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-2xl flex flex-col items-center space-y-5 relative overflow-hidden touch-manipulation">
         
         {/* Header Branding */}
         <div className="text-center">
