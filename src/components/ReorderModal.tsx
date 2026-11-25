@@ -22,6 +22,26 @@ export default function ReorderModal({ isOpen, onClose, tracks: initialTracks, o
 
   if (!isOpen) return null;
 
+  const handleShuffle = () => {
+    if (tracks.length < 2) return;
+    const updated = [...tracks];
+
+    for (let i = updated.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = updated[i];
+      updated[i] = updated[j];
+      updated[j] = temp;
+    }
+
+    const stayedIdentical = updated.every((item, idx) => item.id === tracks[idx]?.id);
+    if (stayedIdentical) {
+      const first = updated.shift();
+      if (first) updated.push(first);
+    }
+
+    setTracks(updated);
+  };
+
   const moveTrack = (index: number, direction: 'up' | 'down') => {
     const newIndex = direction === 'up' ? index - 1 : index + 1;
     if (newIndex < 0 || newIndex >= tracks.length) return;
@@ -89,12 +109,33 @@ export default function ReorderModal({ isOpen, onClose, tracks: initialTracks, o
   return (
     <div className="fixed inset-0 bg-neutral-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 touch-manipulation">
       <div className="bg-neutral-900 border border-neutral-800 rounded-3xl w-full max-w-lg p-6 space-y-6 text-left shadow-2xl touch-manipulation">
-        <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
+        <div className="flex justify-between items-center border-b border-neutral-800 pb-4 gap-3">
           <div>
             <h3 className="font-extrabold text-xl text-white">Reorder Primary Tracks</h3>
-            <p className="text-xs text-neutral-400 mt-0.5">Drag and drop or use arrows to adjust your track sequence.</p>
+            <p className="text-xs text-neutral-400 mt-0.5">Drag and drop, shuffle, or use arrows to adjust your track sequence.</p>
           </div>
-          <button onClick={onClose} className="text-neutral-500 hover:text-white font-bold text-lg cursor-pointer">✕</button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              disabled={saving || tracks.length < 2}
+              onClick={handleShuffle}
+              className="px-3 py-1.5 rounded-xl bg-neutral-950 hover:bg-neutral-800 disabled:opacity-30 text-neutral-200 border border-neutral-700 hover:border-[#ff8c00]/60 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+              title="Shuffle track sequence"
+            >
+              <svg
+                className="w-3.5 h-3.5 text-[#ff8c00]"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />
+              </svg>
+              <span>Shuffle</span>
+            </button>
+            <button onClick={onClose} className="text-neutral-500 hover:text-white font-bold text-lg cursor-pointer px-1">✕</button>
+          </div>
         </div>
 
         <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
