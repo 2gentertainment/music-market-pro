@@ -38,7 +38,7 @@ const FEATURE_GUIDE: Record<
     badge: 'Direct Sales',
     title: 'Buy Track / Project Checkout',
     summary:
-      'Starts checkout so fans can buy a singles & albums directly. Fans who purchase get access to song download(s), stream links & song ringtones.',
+      'Starts checkout so fans can buy singles & albums directly. Fans who purchase get access to song download(s), stream links & song ringtones.',
   },
   albums_view: {
     badge: 'Projects & Albums',
