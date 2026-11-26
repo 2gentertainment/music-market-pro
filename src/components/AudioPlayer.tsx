@@ -743,7 +743,7 @@ export default function AudioPlayer({
 
   function handleShareTrack(track: any, e?: React.MouseEvent) {
     if (e) e.stopPropagation();
-    triggerDemoFeature('share_track');
+    if (triggerDemoFeature('share_track')) return;
     const basePath = artistHandle ? window.location.pathname : `/artist/workspace`;
     const shareUrl = `${window.location.origin}${basePath}?track=${track.id}`;
     navigator.clipboard.writeText(shareUrl);
@@ -752,7 +752,7 @@ export default function AudioPlayer({
 
   function handleBuyClick(track: any) {
     if (!track || !track.id) return;
-    triggerDemoFeature('buy_checkout');
+    if (triggerDemoFeature('buy_checkout')) return;
     setTrackToBuy(track);
     setSubscribeBoxOpen(false);
 
@@ -841,7 +841,7 @@ export default function AudioPlayer({
           <div
             className="search-collapsed-btn absolute left-0 top-0 w-[36px] h-[36px] bg-[#1a1a1a] border border-[#333] rounded-[8px] flex items-center justify-center cursor-pointer hover:border-[#ff8c00]"
             onClick={() => {
-              triggerDemoFeature('search');
+              if (triggerDemoFeature('search')) return;
               setSearchActive(true);
               setSubscribeBoxOpen(false);
             }}
@@ -977,7 +977,7 @@ export default function AudioPlayer({
             <button
               className="main-sub-btn bg-[#ff8c00] text-black font-bold p-[8px] rounded-[10px] flex-1 text-[12px] hover:bg-[#e07b00]"
               onClick={() => {
-                triggerDemoFeature('fan_signup');
+                if (triggerDemoFeature('fan_signup')) return;
                 setSubscribeBoxOpen(true);
               }}
             >
@@ -994,7 +994,7 @@ export default function AudioPlayer({
                 <button
                   className="stream-trigger-btn bg-[#2a2a2a] text-white border border-[#444] p-[8px_12px] font-bold rounded-[10px] flex-1 text-[12px] hover:border-[#ff8c00]"
                   onClick={() => {
-                    triggerDemoFeature('stream_links');
+                    if (triggerDemoFeature('stream_links')) return;
                     setStreamModalOpen(true);
                     setSubscribeBoxOpen(false);
                   }}
@@ -1049,7 +1049,7 @@ export default function AudioPlayer({
           <div className="flex items-center gap-2 mb-2 pb-1 border-b border-[#222]">
             <button
               onClick={() => {
-                triggerDemoFeature('albums_view');
+                if (triggerDemoFeature('albums_view')) return;
                 setViewMode('tracks');
                 setActivePlaylist(masterPlaylist);
                 setSelectedAlbum(null);
@@ -1062,7 +1062,7 @@ export default function AudioPlayer({
             </button>
             <button
               onClick={() => {
-                triggerDemoFeature('albums_view');
+                if (triggerDemoFeature('albums_view')) return;
                 setViewMode('albums');
               }}
               className={`text-[10px] font-bold px-2.5 py-1 rounded-md cursor-pointer transition-all ${
@@ -1182,6 +1182,7 @@ export default function AudioPlayer({
               : 'bg-[#1e1e1e] text-[#aaa] hover:bg-[#2e2e2e] hover:text-white'
           }`}
           onClick={() => {
+            if (triggerDemoFeature('playback_controls')) return;
             setIsShuffled(!isShuffled);
             setSubscribeBoxOpen(false);
           }}
@@ -1198,7 +1199,10 @@ export default function AudioPlayer({
 
         <button
           className="w-[38px] h-[38px] bg-[#1e1e1e] text-[#aaa] rounded-full flex items-center justify-center hover:bg-[#2e2e2e] hover:text-white"
-          onClick={handlePreviousClick}
+          onClick={() => {
+            if (triggerDemoFeature('playback_controls')) return;
+            handlePreviousClick();
+          }}
           title="Previous"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1211,6 +1215,7 @@ export default function AudioPlayer({
           id="play-pause-btn"
           className="w-[46px] h-[46px] bg-[#ff8c00] text-black rounded-full flex items-center justify-center shadow-lg"
           onClick={() => {
+            if (triggerDemoFeature('playback_controls')) return;
             togglePlay();
             setSubscribeBoxOpen(false);
           }}
@@ -1231,6 +1236,7 @@ export default function AudioPlayer({
         <button
           className="w-[38px] h-[38px] bg-[#1e1e1e] text-[#aaa] rounded-full flex items-center justify-center hover:bg-[#2e2e2e] hover:text-white"
           onClick={() => {
+            if (triggerDemoFeature('playback_controls')) return;
             nextTrack();
             setSubscribeBoxOpen(false);
           }}
@@ -1249,6 +1255,7 @@ export default function AudioPlayer({
               : 'bg-[#1e1e1e] text-[#aaa] hover:bg-[#2e2e2e] hover:text-white'
           }`}
           onClick={() => {
+            if (triggerDemoFeature('playback_controls')) return;
             setIsRepeated(!isRepeated);
             setSubscribeBoxOpen(false);
           }}
