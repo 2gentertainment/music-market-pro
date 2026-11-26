@@ -356,7 +356,7 @@ export default function CreateAdLandingPage() {
           <span>● Limited Time Offer - First Month Free</span>
         </div>
 
-        <h1 className="text-[34px] md:text-[42px] font-extrabold tracking-tight mb-4 leading-tight">
+        <h1 className="text-[24px] md:text-[42px] font-extrabold tracking-tight mb-4 leading-tight">
           Music Market Is Your <span className="text-[#ff8c00]">Bridge</span>
         </h1>
 
