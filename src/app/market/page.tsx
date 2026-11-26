@@ -12,51 +12,51 @@ const FEATURE_GUIDE: Record<
 > = {
   overview: {
     badge: 'Storefront Display Mode',
-    title: 'Tap Any Storefront Control',
+    title: 'Tap a Song to Play or Tap Any Button to Preview',
     summary:
-      'Tap Become a Fan, Stream Now, Buy, Albums, Share, Search, or Playback Controls to see how each tool works for artists and labels.',
+      'Tap tracks to hear audio play live, and tap any button on the player to see what that feature does on a live store.',
   },
   search: {
-    badge: 'Catalog Discovery',
-    title: 'Instant Track & Genre Search',
+    badge: 'Catalog Search',
+    title: 'Search Tracks, Artists & Genres',
     summary:
-      'Listeners can filter a creator’s catalog by song title, artist handle, or genre without leaving the storefront player.',
+      'Lets visitors search through a creator’s songs by title, artist handle, or genre right inside the player.',
   },
   fan_signup: {
-    badge: 'Owned Audience',
-    title: 'Direct Fan List Capture',
+    badge: 'Fan Capture',
+    title: 'Become a Fan Email Box',
     summary:
-      'Visitors subscribe directly from the player so creators build an owned fan list for drops, shows, and releases.',
+      'Opens an inline email signup so fans can join an artist or label’s list directly from the storefront.',
   },
   stream_links: {
-    badge: 'DSP Routing',
-    title: 'Multi-Platform Streaming Drawer',
+    badge: 'Streaming Links',
+    title: 'Stream Now DSP Drawer',
     summary:
-      'Routes listeners to Apple Music, Spotify, Tidal, YouTube, and Pandora while logging outbound stream events.',
+      'Opens a drawer with the creator’s streaming links (Apple Music, Spotify, Tidal, YouTube, Pandora) and logs stream clicks.',
   },
   buy_checkout: {
-    badge: 'Direct Commerce',
-    title: 'Single Master & Album Checkout',
+    badge: 'Direct Sales',
+    title: 'Buy Track / Project Checkout',
     summary:
-      'Launches Stripe checkout for individual tracks or full project bundles with direct creator payouts.',
+      'Starts Stripe checkout so fans can buy a single master or full album bundle straight from the player.',
   },
   albums_view: {
-    badge: 'Project Sequencing',
-    title: 'Tracks vs. Albums / Projects',
+    badge: 'Projects & Albums',
+    title: 'Switch Between All Tracks & Albums',
     summary:
-      'Lets fans browse the full song list or switch into ordered project groupings and album tracklists.',
+      'Lets listeners browse all tracks or switch into album/project groupings to play a full project in order.',
   },
   share_track: {
-    badge: 'Viral Sharing',
-    title: 'One-Tap Track Share Links',
+    badge: 'Share Link',
+    title: 'Copy Direct Track Link',
     summary:
-      'Copies a direct track link so listeners can share a specific song in texts or social feeds.',
+      'Copies a shareable link for that specific song so fans can send it in messages or post it.',
   },
   playback_controls: {
-    badge: 'Continuous Playback',
-    title: 'Shuffle, Skip, Repeat & Lock Screen',
+    badge: 'Playback Controls',
+    title: 'Shuffle, Skip, Play/Pause & Repeat',
     summary:
-      'Supports continuous queue playback, smart shuffle, track repeat, and lock-screen / control-center media controls.',
+      'Controls queue order, track skipping, play/pause, and repeat while syncing lock-screen / control-center media controls.',
   },
 };
 
@@ -65,6 +65,12 @@ function MarketContent() {
   const artistHandle = searchParams.get('artist') || undefined;
   const [tracks, setTracks] = useState<any[]>([]);
   const [activeFeature, setActiveFeature] = useState<DemoFeatureKey>('overview');
+  const [pulseKey, setPulseKey] = useState<number>(0);
+
+  const handleFeatureSelect = (feature: DemoFeatureKey) => {
+    setActiveFeature(feature);
+    setPulseKey((prev) => prev + 1);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -103,7 +109,10 @@ function MarketContent() {
   const guide = FEATURE_GUIDE[activeFeature];
 
   const tutorialFooter = (
-    <div className="bg-[#1b140c] border border-[#ff8c00]/45 rounded-xl px-3 py-2 text-left space-y-1">
+    <div
+      key={pulseKey}
+      className="market-guide-pop bg-[#1b140c] border border-[#ff8c00]/55 rounded-xl px-3 py-2 text-left space-y-0.5 shadow-[0_0_20px_rgba(255,140,0,0.16)]"
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[9px] font-black uppercase tracking-wider text-[#ff8c00] bg-[#ff8c00]/15 px-2 py-0.5 rounded">
           {guide.badge}
@@ -111,10 +120,10 @@ function MarketContent() {
         {activeFeature !== 'overview' && (
           <button
             type="button"
-            onClick={() => setActiveFeature('overview')}
+            onClick={() => handleFeatureSelect('overview')}
             className="text-[10px] text-neutral-400 hover:text-white underline cursor-pointer"
           >
-            Reset guide
+            Reset
           </button>
         )}
       </div>
@@ -124,8 +133,28 @@ function MarketContent() {
   );
 
   return (
-    <main className="min-h-screen w-full bg-neutral-950 text-white flex flex-col items-center px-3 py-4 sm:px-6 sm:py-6 touch-manipulation selection:bg-[#ff8c00] selection:text-black">
-      <div className="w-full max-w-4xl flex flex-wrap items-center justify-between gap-3 mb-4">
+    <main className="h-[100dvh] w-full bg-neutral-950 text-white flex flex-col items-center justify-between px-3 py-2.5 sm:px-6 sm:py-3 overflow-hidden touch-manipulation selection:bg-[#ff8c00] selection:text-black">
+      <style jsx>{`
+        @keyframes guidePop {
+          0% {
+            opacity: 0.35;
+            transform: translateY(6px) scale(0.985);
+          }
+          60% {
+            opacity: 1;
+            transform: translateY(-1px) scale(1.008);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        .market-guide-pop {
+          animation: guidePop 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+      `}</style>
+
+      <div className="w-full max-w-[480px] flex items-center justify-between gap-2 flex-shrink-0 mb-1.5">
         <Link
           href="/"
           className="text-xs font-bold text-neutral-400 hover:text-white transition-colors"
@@ -133,26 +162,19 @@ function MarketContent() {
           ← Back to Home
         </Link>
 
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-bold text-emerald-400">
-            ● Storefront Preview &amp; Walkthrough
-          </span>
-          <Link
-            href="/discover"
-            className="text-xs font-extrabold bg-[#ff8c00] hover:bg-[#e07b00] text-neutral-950 px-3 py-1.5 rounded-lg transition-colors"
-          >
-            Explore Discovery
-          </Link>
-        </div>
+        <span className="text-[11px] font-bold text-emerald-400">
+          ● Interactive Feature Guide
+        </span>
       </div>
 
-      <div className="w-full flex justify-center">
+      <div className="w-full flex-1 min-h-0 flex justify-center items-center">
         <AudioPlayer
           artistHandle={artistHandle}
           initialTracks={tracks.length > 0 ? tracks : undefined}
           tier="artist"
           demoMode={true}
-          onDemoAction={setActiveFeature}
+          demoIntercept={true}
+          onDemoAction={handleFeatureSelect}
           demoFooterContent={tutorialFooter}
         />
       </div>
@@ -164,7 +186,7 @@ export default function MarketPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen w-full bg-neutral-950 text-neutral-400 flex items-center justify-center text-sm">
+        <div className="h-[100dvh] w-full bg-neutral-950 text-neutral-400 flex items-center justify-center text-sm">
           Loading Market...
         </div>
       }
