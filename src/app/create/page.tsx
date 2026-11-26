@@ -357,13 +357,13 @@ export default function CreateAdLandingPage() {
         </div>
 
         <h1 className="text-[34px] md:text-[52px] font-extrabold tracking-tight mb-4 leading-tight">
-          Music Mrket Is Your. <span className="text-[#ff8c00]">Bridge.</span>
+          Music Market Is Your. <span className="text-[#ff8c00]">Bridge.</span>
         </h1>
 
         <p className="text-[#aaa] text-[15px] md:text-[17px] max-w-[680px] mb-8 leading-relaxed">
           {isLoggedIn
             ? `Welcome back to your workspace. Manage your ${userTier === 'label' ? 'artist roster and store hub' : 'catalog and direct payouts'} or copy your storefront link below.`
-            : 'Turn social media clicks into streaming traffic, direct sales, and an owned fan data inside one customizable storefront. Try Artist or Label tier free for 30 days.'}
+            : 'Turn social media clicks into streaming traffic, direct sales, and owned fan data all in one place. Stop sending fans away!'}
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center w-full sm:w-auto">
@@ -410,9 +410,9 @@ export default function CreateAdLandingPage() {
       {!isLoggedIn && (
         <section className="w-full max-w-[1100px] mx-auto px-6 py-14 border-t border-[#1f1f1f]">
           <div className="text-center mb-10">
-            <h2 className="text-[28px] font-bold tracking-tight mb-2">One Link. Three Revenue &amp; Growth Engines.</h2>
+            <h2 className="text-[28px] font-bold tracking-tight mb-2">One Link. Three Growth Engines.</h2>
             <p className="text-[#888] text-[14px]">
-              Built for independent artists and labels running ads, dropping singles, and selling direct.
+              Built for independent artists and labels, Designed to convert listeners.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -420,27 +420,27 @@ export default function CreateAdLandingPage() {
               <div className="w-10 h-10 rounded-[10px] bg-[#2a1f12] border border-[#ff8c00]/30 flex items-center justify-center text-[#ff8c00] font-bold">
                 01
               </div>
-              <h3 className="text-[16px] font-bold text-white">Route Listeners to Every DSP</h3>
+              <h3 className="text-[16px] font-bold text-white">Route Listeners to DSPs instantly</h3>
               <p className="text-[13px] text-[#888] leading-relaxed">
-                Send fans straight to Apple Music, Spotify, Tidal, YouTube, or Pandora with live click telemetry—without losing them to generic link trees.
+                Send fans straight to Apple Music, Spotify, Tidal, etc. without losing them to platform mismatch or visual disconnect.
               </p>
             </div>
             <div className="bg-[#161616] border border-[#222] p-6 rounded-[16px] flex flex-col gap-3">
               <div className="w-10 h-10 rounded-[10px] bg-[#1b3a2b] border border-[#27ae60]/30 flex items-center justify-center text-[#2ecc71] font-bold">
                 02
               </div>
-              <h3 className="text-[16px] font-bold text-white">Sell Singles &amp; Albums Direct</h3>
+              <h3 className="text-[16px] font-bold text-white">Sell Singles &amp; Albums Directly</h3>
               <p className="text-[13px] text-[#888] leading-relaxed">
-                Sell high-quality singles and full album bundles right from your player with instant Stripe payouts—keep 90% on Artist or 95% on Label.
+                Sell high-quality singles and full album bundles right from your player with instant payouts—keep 90% on Artist or 95% on Label.
               </p>
             </div>
             <div className="bg-[#161616] border border-[#222] p-6 rounded-[16px] flex flex-col gap-3">
               <div className="w-10 h-10 rounded-[10px] bg-[#222] border border-[#444] flex items-center justify-center text-white font-bold">
                 03
               </div>
-              <h3 className="text-[16px] font-bold text-white">Capture Your Own Fan List</h3>
+              <h3 className="text-[16px] font-bold text-white">Capture Fan Data Effortlessly</h3>
               <p className="text-[13px] text-[#888] leading-relaxed">
-                Every visitor can subscribe directly inside your player so you own your audience for future drops, merch, and shows—independent of algorithms.
+                Every visitor can subscribe directly inside your player so you own your audience for future releases, merch sales,etc.
               </p>
             </div>
           </div>
