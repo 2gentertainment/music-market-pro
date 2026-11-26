@@ -325,13 +325,8 @@ export default function CreateAdLandingPage() {
                 href="/auth"
                 className="text-[#aaa] hover:text-white text-[13px] font-bold px-3 py-2 transition-all"
               >
-                Log In
-              </Link>
-              <button
-                onClick={() => openTrialModal('artist')}
-                className="bg-[#ff8c00] hover:bg-[#e07b00] text-black font-bold px-4 py-2 rounded-[10px] text-[13px] transition-all cursor-pointer"
-              >
-                Start 30-Day Free Trial
+
+                Try Free
               </button>
             </>
           )}
@@ -352,17 +347,17 @@ export default function CreateAdLandingPage() {
         </div>
 
         <div className="inline-flex items-center gap-2 bg-[#1b3a2b] border border-[#27ae60]/50 text-[#2ecc71] text-[12px] font-extrabold px-3.5 py-1 rounded-full mb-4 tracking-wide uppercase">
-          <span>● Limited Launch Offer — First Month Free (No Code Needed)</span>
+          <span>● Limited Time Offer — First Month Free</span>
         </div>
 
         <h1 className="text-[34px] md:text-[52px] font-extrabold tracking-tight mb-4 leading-tight">
-          Stop Sending Fans Away. <span className="text-[#ff8c00]">Own the Bridge.</span>
+          Music Mrket Is Your. <span className="text-[#ff8c00]">Bridge.</span>
         </h1>
 
         <p className="text-[#aaa] text-[15px] md:text-[17px] max-w-[680px] mb-8 leading-relaxed">
           {isLoggedIn
             ? `Welcome back to your workspace. Manage your ${userTier === 'label' ? 'artist roster and store hub' : 'catalog and direct payouts'} or copy your storefront link below.`
-            : 'Turn social media clicks into streaming traffic, direct master sales, and an owned fan email list—all inside one customizable artist or label storefront. Try Artist or Label free for 30 days.'}
+            : 'Turn social media clicks into streaming traffic, direct sales, and an owned fan data inside one customizable storefront. Try Artist or Label tier free for 30 days.'}
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center w-full sm:w-auto">
@@ -387,13 +382,13 @@ export default function CreateAdLandingPage() {
                 onClick={() => openTrialModal('artist')}
                 className="w-full sm:w-auto bg-[#ff8c00] hover:bg-[#e07b00] text-black font-bold px-8 py-4 rounded-[12px] text-[15px] transition-all cursor-pointer shadow-[0_0_24px_rgba(255,140,0,0.3)]"
               >
-                Claim Your Free Month →
+                Try 1 Month Free →
               </button>
               <Link
                 href="/market"
                 className="w-full sm:w-auto bg-[#181818] hover:bg-[#222] border border-[#333] text-white font-bold px-8 py-4 rounded-[12px] text-[15px] transition-all text-center"
               >
-                Interactive Store Demo
+                Store Demo
               </Link>
             </>
           )}
