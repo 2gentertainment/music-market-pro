@@ -388,7 +388,7 @@ export default function CreateAdLandingPage() {
                 onClick={() => openTrialModal('artist')}
                 className="w-full sm:w-auto bg-[#ff8c00] hover:bg-[#e07b00] text-black font-bold px-8 py-4 rounded-[12px] text-[15px] transition-all cursor-pointer shadow-[0_0_24px_rgba(255,140,0,0.3)]"
               >
-                Try 1 Month Free →
+                Create Your Account →
               </button>
               <Link
                 href="/market"
