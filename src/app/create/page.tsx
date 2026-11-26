@@ -353,7 +353,7 @@ export default function CreateAdLandingPage() {
         </div>
 
         <div className="inline-flex items-center gap-2 bg-[#1b3a2b] border border-[#27ae60]/50 text-[#2ecc71] text-[12px] font-extrabold px-3.5 py-1 rounded-full mb-4 tracking-wide uppercase">
-          <span>● Limited Time Offer — First Month Free</span>
+          <span>● Limited Time Offer - First Month Free</span>
         </div>
 
         <h1 className="text-[34px] md:text-[52px] font-extrabold tracking-tight mb-4 leading-tight">
