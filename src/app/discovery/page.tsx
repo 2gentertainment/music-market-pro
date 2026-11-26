@@ -86,7 +86,10 @@ export default function DiscoverPage() {
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [hideTop10PauseOverlay, setHideTop10PauseOverlay] = useState(false);
+  const [canScrollTop10Left, setCanScrollTop10Left] = useState(false);
+  const [canScrollTop10Right, setCanScrollTop10Right] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const top10CarouselRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isPlaying || !currentTrack) {
@@ -101,6 +104,33 @@ export default function DiscoverPage() {
 
     return () => window.clearTimeout(timer);
   }, [isPlaying, currentTrack?.id]);
+
+  const updateTop10ScrollButtons = () => {
+    const el = top10CarouselRef.current;
+    if (!el) {
+      setCanScrollTop10Left(false);
+      setCanScrollTop10Right(false);
+      return;
+    }
+    setCanScrollTop10Left(el.scrollLeft > 4);
+    setCanScrollTop10Right(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
+
+  useEffect(() => {
+    updateTop10ScrollButtons();
+    window.addEventListener('resize', updateTop10ScrollButtons);
+    return () => window.removeEventListener('resize', updateTop10ScrollButtons);
+  }, [top10Singles.length, loading]);
+
+  const scrollTop10By = (direction: 'prev' | 'next') => {
+    const el = top10CarouselRef.current;
+    if (!el) return;
+    const step = Math.max(260, Math.round(el.clientWidth * 0.75));
+    el.scrollBy({
+      left: direction === 'next' ? step : -step,
+      behavior: 'smooth',
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -566,142 +596,178 @@ export default function DiscoverPage() {
           <div className="text-center py-16 text-sm text-neutral-400">Loading discovery feed...</div>
         ) : (
           <>
-            {/* Top 10 Most Played Singles */}
+            {/* Top 10 Most Played Singles (Swipe + Side Arrow Slideshow) */}
             <section className="space-y-4 text-left">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <h2 className="text-xl font-black text-white">Top 10 Most Played Singles</h2>
-                <span className="text-xs text-neutral-400">Live play telemetry</span>
+                <span className="text-xs text-neutral-400">Swipe or use side arrows</span>
               </div>
               {top10Singles.length === 0 ? (
                 <p className="text-xs text-neutral-500 bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
                   No matching singles found.
                 </p>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                  {top10Singles.map((track, idx) => {
-                    const active = currentTrack && String(currentTrack.id) === String(track.id);
-                    const playingThis = Boolean(active && isPlaying);
-                    const overlayVisible = !playingThis || !hideTop10PauseOverlay;
-                    const handle = (track.artist_handle || '').trim();
-                    const dspLinks = [
-                      { label: 'Spotify', url: track.spotify_url },
-                      { label: 'Apple Music', url: track.apple_music_url },
-                      { label: 'Tidal', url: track.tidal_url },
-                      { label: 'YouTube', url: track.youtube_url },
-                      { label: 'Pandora', url: track.pandora_url },
-                    ].filter((item) => Boolean(item.url?.trim()));
+                <div className="relative group/carousel">
+                  {/* Left Arrow Button */}
+                  <button
+                    type="button"
+                    onClick={() => scrollTop10By('prev')}
+                    disabled={!canScrollTop10Left}
+                    aria-label="Previous Top 10 singles"
+                    className={`hidden sm:flex items-center justify-center w-10 h-10 rounded-full bg-neutral-950/90 border border-neutral-700 hover:border-[#ff8c00] text-white hover:text-[#ff8c00] shadow-xl backdrop-blur-md transition-all cursor-pointer absolute left-2 top-1/2 -translate-y-1/2 z-20 ${
+                      canScrollTop10Left ? 'opacity-95' : 'opacity-0 pointer-events-none'
+                    }`}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                  </button>
 
-                    return (
-                      <div
-                        key={track.id}
-                        className={`bg-neutral-900 border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all ${
-                          active ? 'border-[#ff8c00]' : 'border-neutral-800 hover:border-neutral-700'
-                        }`}
-                      >
-                        <div className="space-y-2.5">
-                          {/* Large Square Artwork with Auto-Hiding Play/Pause Overlay */}
-                          <div
-                            onClick={() => {
-                              if (playingThis && hideTop10PauseOverlay) {
-                                setHideTop10PauseOverlay(false);
-                              }
-                              handleTogglePlay(track);
-                            }}
-                            role="button"
-                            tabIndex={0}
-                            aria-label={playingThis ? `Pause ${track.title}` : `Play ${track.title}`}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
+                  {/* Right Arrow Button */}
+                  <button
+                    type="button"
+                    onClick={() => scrollTop10By('next')}
+                    disabled={!canScrollTop10Right}
+                    aria-label="Next Top 10 singles"
+                    className={`hidden sm:flex items-center justify-center w-10 h-10 rounded-full bg-neutral-950/90 border border-neutral-700 hover:border-[#ff8c00] text-white hover:text-[#ff8c00] shadow-xl backdrop-blur-md transition-all cursor-pointer absolute right-2 top-1/2 -translate-y-1/2 z-20 ${
+                      canScrollTop10Right ? 'opacity-95' : 'opacity-0 pointer-events-none'
+                    }`}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+
+                  <div
+                    ref={top10CarouselRef}
+                    onScroll={updateTop10ScrollButtons}
+                    className="flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 touch-pan-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  >
+                    {top10Singles.map((track, idx) => {
+                      const active = currentTrack && String(currentTrack.id) === String(track.id);
+                      const playingThis = Boolean(active && isPlaying);
+                      const overlayVisible = !playingThis || !hideTop10PauseOverlay;
+                      const handle = (track.artist_handle || '').trim();
+                      const dspLinks = [
+                        { label: 'Spotify', url: track.spotify_url },
+                        { label: 'Apple Music', url: track.apple_music_url },
+                        { label: 'Tidal', url: track.tidal_url },
+                        { label: 'YouTube', url: track.youtube_url },
+                        { label: 'Pandora', url: track.pandora_url },
+                      ].filter((item) => Boolean(item.url?.trim()));
+
+                      return (
+                        <div
+                          key={track.id}
+                          className={`snap-start shrink-0 w-[76vw] sm:w-[240px] lg:w-[224px] bg-neutral-900 border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all ${
+                            active ? 'border-[#ff8c00]' : 'border-neutral-800 hover:border-neutral-700'
+                          }`}
+                        >
+                          <div className="space-y-2.5">
+                            {/* Large Square Artwork with Auto-Hiding Play/Pause Overlay */}
+                            <div
+                              onClick={() => {
                                 if (playingThis && hideTop10PauseOverlay) {
                                   setHideTop10PauseOverlay(false);
                                 }
                                 handleTogglePlay(track);
-                              }
-                            }}
-                            className="relative group w-full aspect-square rounded-xl overflow-hidden border border-neutral-800 bg-neutral-950 cursor-pointer select-none"
-                          >
-                            <img
-                              src={track.artwork_url || FALLBACK_ART}
-                              alt={track.title}
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            />
-
-                            {/* Top-Left Chart Rank Badge */}
-                            <span className="absolute top-2.5 left-2.5 z-10 bg-neutral-950/85 backdrop-blur-md border border-[#ff8c00]/50 text-[#ff8c00] text-[11px] font-black px-2.5 py-0.5 rounded-lg shadow-md">
-                              #{idx + 1}
-                            </span>
-
-                            {/* Play / Auto-Hiding Pause Overlay */}
-                            <div
-                              className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-500 ${
-                                overlayVisible
-                                  ? 'opacity-100'
-                                  : 'opacity-0'
-                              }`}
+                              }}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={playingThis ? `Pause ${track.title}` : `Play ${track.title}`}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  if (playingThis && hideTop10PauseOverlay) {
+                                    setHideTop10PauseOverlay(false);
+                                  }
+                                  handleTogglePlay(track);
+                                }
+                              }}
+                              className="relative group w-full aspect-square rounded-xl overflow-hidden border border-neutral-800 bg-neutral-950 cursor-pointer select-none"
                             >
-                              <div className="w-13 h-13 rounded-full bg-[#ff8c00] text-neutral-950 flex items-center justify-center shadow-xl shadow-[#ff8c00]/40 transition-transform duration-200 group-hover:scale-105">
-                                {!playingThis ? (
-                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                    <polygon points="6 4 20 12 6 20 6 4" />
-                                  </svg>
-                                ) : (
-                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                    <rect x="6" y="4" width="4" height="16" rx="1" />
-                                    <rect x="14" y="4" width="4" height="16" rx="1" />
-                                  </svg>
-                                )}
+                              <img
+                                src={track.artwork_url || FALLBACK_ART}
+                                alt={track.title}
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              />
+
+                              {/* Top-Left Chart Rank Badge */}
+                              <span className="absolute top-2.5 left-2.5 z-10 bg-neutral-950/85 backdrop-blur-md border border-[#ff8c00]/50 text-[#ff8c00] text-[11px] font-black px-2.5 py-0.5 rounded-lg shadow-md">
+                                #{idx + 1}
+                              </span>
+
+                              {/* Play / Auto-Hiding Pause Overlay */}
+                              <div
+                                className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-500 ${
+                                  overlayVisible
+                                    ? 'opacity-100'
+                                    : 'opacity-0'
+                                }`}
+                              >
+                                <div className="w-13 h-13 rounded-full bg-[#ff8c00] text-neutral-950 flex items-center justify-center shadow-xl shadow-[#ff8c00]/40 transition-transform duration-200 group-hover:scale-105">
+                                  {!playingThis ? (
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                      <polygon points="6 4 20 12 6 20 6 4" />
+                                    </svg>
+                                  ) : (
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                      <rect x="6" y="4" width="4" height="16" rx="1" />
+                                      <rect x="14" y="4" width="4" height="16" rx="1" />
+                                    </svg>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          {/* Title, Handle & Plays */}
-                          <div className="min-w-0">
-                            <h3 className="text-sm font-extrabold text-white truncate">{track.title}</h3>
-                            {handle && (
-                              <Link
-                                href={`/artist/${encodeURIComponent(handle)}?view=player`}
-                                className="text-xs text-[#ff8c00] hover:underline font-semibold block truncate"
-                              >
-                                @{handle}
-                              </Link>
-                            )}
-                            <p className="text-[11px] text-neutral-400 truncate">
-                              {playCounts[String(track.id)] || 0} plays
-                              {track.genre ? ` • ${track.genre}` : ''}
-                            </p>
-                          </div>
-
-                          {/* DSP Streaming Pills */}
-                          {dspLinks.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {dspLinks.map((dsp) => (
-                                <a
-                                  key={dsp.label}
-                                  href={dsp.url!}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={() => logEvent('outbound_stream', track, { platform: dsp.label })}
-                                  className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 hover:border-[#ff8c00] text-neutral-200 transition-all"
+                            {/* Title, Handle & Plays */}
+                            <div className="min-w-0">
+                              <h3 className="text-sm font-extrabold text-white truncate">{track.title}</h3>
+                              {handle && (
+                                <Link
+                                  href={`/artist/${encodeURIComponent(handle)}?view=player`}
+                                  className="text-xs text-[#ff8c00] hover:underline font-semibold block truncate"
                                 >
-                                  {dsp.label}
-                                </a>
-                              ))}
+                                  @{handle}
+                                </Link>
+                              )}
+                              <p className="text-[11px] text-neutral-400 truncate">
+                                {playCounts[String(track.id)] || 0} plays
+                                {track.genre ? ` • ${track.genre}` : ''}
+                              </p>
                             </div>
-                          )}
-                        </div>
 
-                        {/* Buy Master CTA */}
-                        <button
-                          type="button"
-                          onClick={() => handleBuySingle(track)}
-                          className="w-full bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-extrabold py-2 rounded-xl text-xs cursor-pointer transition-all"
-                        >
-                          Buy Master ${Number(track.price || 0.99).toFixed(2)}
-                        </button>
-                      </div>
-                    );
-                  })}
+                            {/* DSP Streaming Pills */}
+                            {dspLinks.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {dspLinks.map((dsp) => (
+                                  <a
+                                    key={dsp.label}
+                                    href={dsp.url!}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={() => logEvent('outbound_stream', track, { platform: dsp.label })}
+                                    className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 hover:border-[#ff8c00] text-neutral-200 transition-all"
+                                  >
+                                    {dsp.label}
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Buy Master CTA */}
+                          <button
+                            type="button"
+                            onClick={() => handleBuySingle(track)}
+                            className="w-full bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-extrabold py-2 rounded-xl text-xs cursor-pointer transition-all"
+                          >
+                            Buy Master ${Number(track.price || 0.99).toFixed(2)}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </section>
