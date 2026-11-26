@@ -410,7 +410,7 @@ export default function CreateAdLandingPage() {
       {!isLoggedIn && (
         <section className="w-full max-w-[1100px] mx-auto px-6 py-14 border-t border-[#1f1f1f]">
           <div className="text-center mb-10">
-            <h2 className="text-[28px] font-bold tracking-tight mb-2">One Link, Three Growth Engines</h2>
+            <h2 className="text-[28px] font-bold tracking-tight mb-2">One Link, Three Engines</h2>
             <p className="text-[#888] text-[14px]">
               Built for artists and labels, Designed to convert listeners.
             </p>
