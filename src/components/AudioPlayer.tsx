@@ -18,6 +18,7 @@ interface AudioPlayerProps {
   initialTracks?: any[];
   tier?: string;
   demoMode?: boolean;
+  demoIntercept?: boolean;
   onDemoAction?: (feature: DemoFeatureKey) => void;
   demoFooterContent?: React.ReactNode;
 }
@@ -38,13 +39,15 @@ export default function AudioPlayer({
   initialTracks,
   tier = 'free',
   demoMode = false,
+  demoIntercept = false,
   onDemoAction,
   demoFooterContent,
 }: AudioPlayerProps) {
-  const triggerDemoFeature = (key: DemoFeatureKey) => {
+  const triggerDemoFeature = (key: DemoFeatureKey): boolean => {
     if (demoMode && onDemoAction) {
       onDemoAction(key);
     }
+    return Boolean(demoIntercept);
   };
   const audioRef = useRef<HTMLAudioElement>(null);
 
@@ -916,7 +919,11 @@ export default function AudioPlayer({
       </div>
 
       {/* Artwork */}
-      <div className="artwork-container w-[150px] h-[150px] mx-auto rounded-[12px] overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.6)] flex items-center justify-center bg-[#1a1a1a] flex-shrink-0">
+      <div
+        className={`artwork-container mx-auto rounded-[12px] overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.6)] flex items-center justify-center bg-[#1a1a1a] flex-shrink-0 ${
+          demoMode ? 'w-[108px] h-[108px] sm:w-[126px] sm:h-[126px]' : 'w-[150px] h-[150px]'
+        }`}
+      >
         <img
           src={currentTrack?.artwork_url || FALLBACK_COVER_ART}
           alt="Artwork"
