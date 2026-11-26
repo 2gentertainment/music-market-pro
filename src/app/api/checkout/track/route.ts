@@ -21,6 +21,11 @@ function getTierCommissionRate(tier?: string | null): number {
   return TIER_COMMISSION_RATES[normalized] ?? TIER_COMMISSION_RATES.free;
 }
 
+function clampStripeMeta(value: unknown, maxLen = 500): string {
+  const str = value == null ? '' : String(value);
+  return str.length > maxLen ? str.slice(0, maxLen) : str;
+}
+
 export async function POST(req: Request) {
 
   try {
@@ -205,19 +210,16 @@ export async function POST(req: Request) {
       allow_promotion_codes: true,
       line_items: lineItems,
       metadata: {
-        artistHandle: artistHandle || '',
-        trackId: primaryItem?.trackId ? String(primaryItem.trackId) : primaryItem?.id ? String(primaryItem.id) : '',
-        trackIds: JSON.stringify(
-          items.flatMap((it: any) =>
-            Array.isArray(it.trackIds) && it.trackIds.length > 0
-              ? it.trackIds.map(String)
-              : it?.trackId || it?.id
-              ? [String(it.trackId || it.id)]
-              : []
-          )
+        artistHandle: clampStripeMeta(artistHandle || ''),
+        trackId: clampStripeMeta(
+          primaryItem?.trackId
+            ? String(primaryItem.trackId)
+            : primaryItem?.id
+            ? String(primaryItem.id)
+            : ''
         ),
-        itemType: primaryItem?.itemType === 'album' ? 'album' : 'single',
-        albumName: primaryItem?.albumName || '',
+        itemType: clampStripeMeta(primaryItem?.itemType === 'album' ? 'album' : 'single'),
+        albumName: clampStripeMeta(primaryItem?.albumName || ''),
       },
       success_url: `${appUrl}/vault?success=true`,
       cancel_url: `${appUrl}/`,
