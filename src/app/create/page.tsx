@@ -326,6 +326,12 @@ export default function CreateAdLandingPage() {
                 className="text-[#aaa] hover:text-white text-[13px] font-bold px-3 py-2 transition-all"
               >
 
+                Log In
+              </Link>
+              <button
+                onClick={() => openTrialModal('artist')}
+                className="bg-[#ff8c00] hover:bg-[#e07b00] text-black font-bold px-4 py-2 rounded-[10px] text-[13px] transition-all cursor-pointer"
+              >
                 Try Free
               </button>
             </>
