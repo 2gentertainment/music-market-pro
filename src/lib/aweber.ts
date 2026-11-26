@@ -19,6 +19,7 @@ interface SyncCreatorToAweberInput {
   name?: string;
   tier?: AweberAudienceRole;
   handle?: string;
+  tags?: string[];
 }
 
 function resolveAweberListId(role?: string): { listId: string; roleTag: 'buyer' | 'fan' | 'creator' } {
@@ -43,6 +44,7 @@ export async function syncCreatorToAweber({
   name = '',
   tier,
   handle,
+  tags: extraTags = [],
 }: SyncCreatorToAweberInput) {
   if (!email) {
     throw new Error('Email is required for AWeber sync');
@@ -77,9 +79,15 @@ export async function syncCreatorToAweber({
     throw new Error('Missing AWEBER_ACCOUNT_ID or AWeber list ID');
   }
 
-  const tags = ['2g-music-market', roleTag];
-  if (normalizedRole) tags.push(`tier-${normalizedRole}`);
-  if (handle) tags.push(handle);
+  const tags = Array.from(
+    new Set([
+      '2g-music-market',
+      roleTag,
+      ...(normalizedRole ? [`tier-${normalizedRole}`] : []),
+      ...(handle ? [handle] : []),
+      ...extraTags.map((t) => t.trim()).filter(Boolean),
+    ])
+  );
 
   const subscriberPayload = {
     email: email.trim().toLowerCase(),
