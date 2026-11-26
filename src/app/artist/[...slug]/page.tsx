@@ -18,7 +18,11 @@ function resolveArtworkUrl(raw?: string | null): string {
   }
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, '');
   if (baseUrl) {
-    return `${baseUrl}/storage/v1/object/public/${trimmed.replace(/^\/+/, '')}`;
+    const cleanPath = trimmed.replace(/^\/+/, '');
+    const withBucket = cleanPath.startsWith('v2-cover-art/')
+      ? cleanPath
+      : `v2-cover-art/${cleanPath}`;
+    return `${baseUrl}/storage/v1/object/public/${withBucket}`;
   }
   return FALLBACK_MUSIC_THUMBNAIL;
 }
@@ -28,7 +32,7 @@ export async function generateMetadata({
   searchParams,
 }: {
   params: Promise<{ slug?: string | string[] }>;
-  searchParams: Promise<{ drop?: string; view?: string }>;
+  searchParams: Promise<{ drop?: string; track?: string; view?: string }>;
 }): Promise<Metadata> {
   const resolvedParams = await params;
   const resolvedSearch = await searchParams;
@@ -45,12 +49,14 @@ export async function generateMetadata({
   const targetHandle =
     primary.toLowerCase() === 'workspace' ? secondary : primary || '2g-imprint';
 
-  // 1. Track-specific ?drop= share link
-  if (resolvedSearch?.drop) {
+  // 1. Track-specific ?drop= or ?track= share link
+  const sharedTrackId = resolvedSearch?.drop || resolvedSearch?.track;
+  if (sharedTrackId) {
     const { data: track } = await supabaseServer
       .from('tracks_pro')
       .select('title, artist_handle, artwork_url, artwork_file_path, album_name')
-      .eq('id', resolvedSearch.drop)
+      .eq('id', sharedTrackId)
+      .is('deleted_at', null)
       .maybeSingle();
 
     if (track) {
@@ -68,7 +74,7 @@ export async function generateMetadata({
           title,
           description,
           type: 'music.song',
-          images: [{ url: thumb, alt: track.title }],
+          images: [{ url: thumb, width: 1200, height: 1200, alt: track.title }],
         },
         twitter: {
           card: 'summary_large_image',
@@ -84,18 +90,42 @@ export async function generateMetadata({
   const safeLookup = targetHandle.replace(/[,()]/g, '');
   const { data: profile } = await supabaseServer
     .from('profiles')
-    .select('handle, artist_handle, display_name, avatar_url, logo_url, tier')
+    .select('id, handle, artist_handle, display_name, label_name, avatar_url, logo_url, tier')
     .or(`handle.ilike.${safeLookup},artist_handle.ilike.${safeLookup}`)
     .maybeSingle();
 
-  const displayName = profile?.display_name || targetHandle || 'Music Market Pro';
+  const displayName =
+    profile?.label_name || profile?.display_name || targetHandle || 'Music Market Pro';
+
+  let lookupHandles = [
+    safeLookup,
+    safeLookup.toLowerCase(),
+    profile?.handle,
+    profile?.artist_handle,
+  ].filter(Boolean) as string[];
+
+  if (profile?.tier === 'label' && profile?.id) {
+    const { data: roster } = await supabaseServer
+      .from('profiles')
+      .select('handle, artist_handle')
+      .eq('parent_label_id', profile.id);
+    if (roster) {
+      lookupHandles.push(
+        ...(roster.flatMap((r) => [r.handle, r.artist_handle]).filter(Boolean) as string[])
+      );
+    }
+  }
+
+  const expandedHandles = Array.from(
+    new Set(lookupHandles.flatMap((h) => [h.trim(), h.trim().toLowerCase()]))
+  );
 
   const { data: topTrack } = await supabaseServer
     .from('tracks_pro')
     .select('title, artwork_url, artwork_file_path')
     .eq('is_archived', false)
     .is('deleted_at', null)
-    .ilike('artist_handle', safeLookup)
+    .in('artist_handle', expandedHandles)
     .order('track_order', { ascending: true, nullsFirst: false })
     .limit(1)
     .maybeSingle();
