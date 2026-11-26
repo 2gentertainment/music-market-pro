@@ -85,7 +85,22 @@ export default function DiscoverPage() {
 
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [hideTop10PauseOverlay, setHideTop10PauseOverlay] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (!isPlaying || !currentTrack) {
+      setHideTop10PauseOverlay(false);
+      return;
+    }
+
+    setHideTop10PauseOverlay(false);
+    const timer = window.setTimeout(() => {
+      setHideTop10PauseOverlay(true);
+    }, 4500);
+
+    return () => window.clearTimeout(timer);
+  }, [isPlaying, currentTrack?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -562,8 +577,131 @@ export default function DiscoverPage() {
                   No matching singles found.
                 </p>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {top10Singles.map((track, idx) => renderTrackCard(track, idx))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                  {top10Singles.map((track, idx) => {
+                    const active = currentTrack && String(currentTrack.id) === String(track.id);
+                    const playingThis = Boolean(active && isPlaying);
+                    const overlayVisible = !playingThis || !hideTop10PauseOverlay;
+                    const handle = (track.artist_handle || '').trim();
+                    const dspLinks = [
+                      { label: 'Spotify', url: track.spotify_url },
+                      { label: 'Apple Music', url: track.apple_music_url },
+                      { label: 'Tidal', url: track.tidal_url },
+                      { label: 'YouTube', url: track.youtube_url },
+                      { label: 'Pandora', url: track.pandora_url },
+                    ].filter((item) => Boolean(item.url?.trim()));
+
+                    return (
+                      <div
+                        key={track.id}
+                        className={`bg-neutral-900 border rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all ${
+                          active ? 'border-[#ff8c00]' : 'border-neutral-800 hover:border-neutral-700'
+                        }`}
+                      >
+                        <div className="space-y-2.5">
+                          {/* Large Square Artwork with Auto-Hiding Play/Pause Overlay */}
+                          <div
+                            onClick={() => {
+                              if (playingThis && hideTop10PauseOverlay) {
+                                setHideTop10PauseOverlay(false);
+                              }
+                              handleTogglePlay(track);
+                            }}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={playingThis ? `Pause ${track.title}` : `Play ${track.title}`}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                if (playingThis && hideTop10PauseOverlay) {
+                                  setHideTop10PauseOverlay(false);
+                                }
+                                handleTogglePlay(track);
+                              }
+                            }}
+                            className="relative group w-full aspect-square rounded-xl overflow-hidden border border-neutral-800 bg-neutral-950 cursor-pointer select-none"
+                          >
+                            <img
+                              src={track.artwork_url || FALLBACK_ART}
+                              alt={track.title}
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+
+                            {/* Top-Left Chart Rank Badge */}
+                            <span className="absolute top-2.5 left-2.5 z-10 bg-neutral-950/85 backdrop-blur-md border border-[#ff8c00]/50 text-[#ff8c00] text-[11px] font-black px-2.5 py-0.5 rounded-lg shadow-md">
+                              #{idx + 1}
+                            </span>
+
+                            {/* Play / Auto-Hiding Pause Overlay */}
+                            <div
+                              className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-500 ${
+                                overlayVisible
+                                  ? 'opacity-100'
+                                  : 'opacity-0'
+                              }`}
+                            >
+                              <div className="w-13 h-13 rounded-full bg-[#ff8c00] text-neutral-950 flex items-center justify-center shadow-xl shadow-[#ff8c00]/40 transition-transform duration-200 group-hover:scale-105">
+                                {!playingThis ? (
+                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <polygon points="6 4 20 12 6 20 6 4" />
+                                  </svg>
+                                ) : (
+                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                    <rect x="6" y="4" width="4" height="16" rx="1" />
+                                    <rect x="14" y="4" width="4" height="16" rx="1" />
+                                  </svg>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Title, Handle & Plays */}
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-extrabold text-white truncate">{track.title}</h3>
+                            {handle && (
+                              <Link
+                                href={`/artist/${encodeURIComponent(handle)}?view=player`}
+                                className="text-xs text-[#ff8c00] hover:underline font-semibold block truncate"
+                              >
+                                @{handle}
+                              </Link>
+                            )}
+                            <p className="text-[11px] text-neutral-400 truncate">
+                              {playCounts[String(track.id)] || 0} plays
+                              {track.genre ? ` • ${track.genre}` : ''}
+                            </p>
+                          </div>
+
+                          {/* DSP Streaming Pills */}
+                          {dspLinks.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {dspLinks.map((dsp) => (
+                                <a
+                                  key={dsp.label}
+                                  href={dsp.url!}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={() => logEvent('outbound_stream', track, { platform: dsp.label })}
+                                  className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-neutral-950 border border-neutral-800 hover:border-[#ff8c00] text-neutral-200 transition-all"
+                                >
+                                  {dsp.label}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Buy Master CTA */}
+                        <button
+                          type="button"
+                          onClick={() => handleBuySingle(track)}
+                          className="w-full bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-extrabold py-2 rounded-xl text-xs cursor-pointer transition-all"
+                        >
+                          Buy Master ${Number(track.price || 0.99).toFixed(2)}
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </section>
