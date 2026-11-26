@@ -357,7 +357,7 @@ export default function CreateAdLandingPage() {
         </div>
 
         <h1 className="text-[34px] md:text-[52px] font-extrabold tracking-tight mb-4 leading-tight">
-          Music Market Is Your. <span className="text-[#ff8c00]">Bridge.</span>
+          Music Market Is Your<span className="text-[#ff8c00]">Bridge</span>
         </h1>
 
         <p className="text-[#aaa] text-[15px] md:text-[17px] max-w-[680px] mb-8 leading-relaxed">
