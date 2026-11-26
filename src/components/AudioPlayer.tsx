@@ -3,10 +3,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase as _supabase } from '@/utils/supabase';
 
+export type DemoFeatureKey =
+  | 'overview'
+  | 'search'
+  | 'fan_signup'
+  | 'stream_links'
+  | 'buy_checkout'
+  | 'albums_view'
+  | 'share_track'
+  | 'playback_controls';
+
 interface AudioPlayerProps {
   artistHandle?: string;
   initialTracks?: any[];
   tier?: string;
+  demoMode?: boolean;
+  onDemoAction?: (feature: DemoFeatureKey) => void;
+  demoFooterContent?: React.ReactNode;
 }
 
 const FALLBACK_COVER_ART =
@@ -20,7 +33,19 @@ const platformColors: Record<string, string> = {
   'Pandora': '#0095ff',
 };
 
-export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free' }: AudioPlayerProps) {
+export default function AudioPlayer({
+  artistHandle,
+  initialTracks,
+  tier = 'free',
+  demoMode = false,
+  onDemoAction,
+  demoFooterContent,
+}: AudioPlayerProps) {
+  const triggerDemoFeature = (key: DemoFeatureKey) => {
+    if (demoMode && onDemoAction) {
+      onDemoAction(key);
+    }
+  };
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const isDevSuiteEnabled =
@@ -715,6 +740,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
   function handleShareTrack(track: any, e?: React.MouseEvent) {
     if (e) e.stopPropagation();
+    triggerDemoFeature('share_track');
     const basePath = artistHandle ? window.location.pathname : `/artist/workspace`;
     const shareUrl = `${window.location.origin}${basePath}?track=${track.id}`;
     navigator.clipboard.writeText(shareUrl);
@@ -723,6 +749,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
 
   function handleBuyClick(track: any) {
     if (!track || !track.id) return;
+    triggerDemoFeature('buy_checkout');
     setTrackToBuy(track);
     setSubscribeBoxOpen(false);
 
@@ -811,6 +838,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
           <div
             className="search-collapsed-btn absolute left-0 top-0 w-[36px] h-[36px] bg-[#1a1a1a] border border-[#333] rounded-[8px] flex items-center justify-center cursor-pointer hover:border-[#ff8c00]"
             onClick={() => {
+              triggerDemoFeature('search');
               setSearchActive(true);
               setSubscribeBoxOpen(false);
             }}
@@ -941,7 +969,10 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
           <div className="action-section flex gap-[10px] mb-[6px]">
             <button
               className="main-sub-btn bg-[#ff8c00] text-black font-bold p-[8px] rounded-[10px] flex-1 text-[12px] hover:bg-[#e07b00]"
-              onClick={() => setSubscribeBoxOpen(true)}
+              onClick={() => {
+                triggerDemoFeature('fan_signup');
+                setSubscribeBoxOpen(true);
+              }}
             >
               BECOME A FAN
             </button>
@@ -956,6 +987,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
                 <button
                   className="stream-trigger-btn bg-[#2a2a2a] text-white border border-[#444] p-[8px_12px] font-bold rounded-[10px] flex-1 text-[12px] hover:border-[#ff8c00]"
                   onClick={() => {
+                    triggerDemoFeature('stream_links');
                     setStreamModalOpen(true);
                     setSubscribeBoxOpen(false);
                   }}
@@ -1010,6 +1042,7 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
           <div className="flex items-center gap-2 mb-2 pb-1 border-b border-[#222]">
             <button
               onClick={() => {
+                triggerDemoFeature('albums_view');
                 setViewMode('tracks');
                 setActivePlaylist(masterPlaylist);
                 setSelectedAlbum(null);
@@ -1021,7 +1054,10 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
               All Tracks
             </button>
             <button
-              onClick={() => setViewMode('albums')}
+              onClick={() => {
+                triggerDemoFeature('albums_view');
+                setViewMode('albums');
+              }}
               className={`text-[10px] font-bold px-2.5 py-1 rounded-md cursor-pointer transition-all ${
                 viewMode === 'albums' ? 'bg-[#ff8c00] text-black' : 'bg-[#202020] text-[#888] hover:text-white'
               }`}
@@ -1220,28 +1256,33 @@ export default function AudioPlayer({ artistHandle, initialTracks, tier = 'free'
         </button>
       </div>
 
-      {/* Free Tier Artist Acquisition Footer */}
-      {currentTier === 'free' && (
-        <div className="text-center pt-1 pb-[2px] flex-shrink-0">
-          <a
-            href="/"
-            className="inline-flex items-center justify-center gap-1.5 text-[10px] text-[#777] hover:text-[#ff8c00] transition-colors tracking-wide"
-          >
-            <span className="inline-flex items-end gap-[2px] h-[11px]" aria-hidden="true">
-              <span className="w-[2px] h-full bg-[#ff8c00]" />
-              <span className="w-[2px] h-[7px] bg-[#ff8c00]" />
-              <span className="w-[2px] h-[5px] bg-[#ff8c00]" />
-              <span className="w-[2px] h-[4px] bg-[#ff8c00]" />
-              <span className="w-[2px] h-[5px] bg-[#ff8c00]" />
-              <span className="w-[2px] h-[9px] bg-[#2ecc71]" />
-              <span className="w-[2px] h-full bg-[#ff8c00]" />
-            </span>
-            <span>Powered by</span>
-            <span className="font-bold text-white">Music Market</span>
-            <span>·</span>
-            <span className="underline">Create Your Store</span>
-          </a>
-        </div>
+      {/* Demo Mode Tutorial Dock (Market Page Only) */}
+      {demoMode && demoFooterContent ? (
+        <div className="pt-1 pb-[2px] flex-shrink-0">{demoFooterContent}</div>
+      ) : (
+        /* Free Tier Artist Acquisition Footer */
+        currentTier === 'free' && (
+          <div className="text-center pt-1 pb-[2px] flex-shrink-0">
+            <a
+              href="/"
+              className="inline-flex items-center justify-center gap-1.5 text-[10px] text-[#777] hover:text-[#ff8c00] transition-colors tracking-wide"
+            >
+              <span className="inline-flex items-end gap-[2px] h-[11px]" aria-hidden="true">
+                <span className="w-[2px] h-full bg-[#ff8c00]" />
+                <span className="w-[2px] h-[7px] bg-[#ff8c00]" />
+                <span className="w-[2px] h-[5px] bg-[#ff8c00]" />
+                <span className="w-[2px] h-[4px] bg-[#ff8c00]" />
+                <span className="w-[2px] h-[5px] bg-[#ff8c00]" />
+                <span className="w-[2px] h-[9px] bg-[#2ecc71]" />
+                <span className="w-[2px] h-full bg-[#ff8c00]" />
+              </span>
+              <span>Powered by</span>
+              <span className="font-bold text-white">Music Market</span>
+              <span>·</span>
+              <span className="underline">Create Your Store</span>
+            </a>
+          </div>
+        )
       )}
 
       {/* Stream Links Modal Drawer */}
