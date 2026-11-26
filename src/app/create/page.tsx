@@ -256,20 +256,20 @@ export default function CreateAdLandingPage() {
 
   const tierDetails = {
     free: {
-      title: 'Free Hub (Downgrade Option)',
-      price: 'Included in Trial · $0/mo Anytime',
+      title: 'Free Tier (Downgrade Anytime)',
+      price: 'Free',
       description:
-        'Start with Artist or Label free for 30 days first—you can switch down to the 10-song Free Hub anytime from your dashboard.',
+        'Start with Artist or Label free for 30 days first you can switch down to a Free Account anytime from your dashboard.',
       features: [
         '10-song centralized catalog hub for fans & A&Rs',
         'Stripe Express account linking for instant direct payouts',
-        'Direct track sales enabled (15% commission split)',
+        'Direct track sales enabled (15% sales commission)',
         'Available anytime if you downgrade after your 30-day trial',
       ],
     },
     artist: {
-      title: 'Independent Artist',
-      price: '1st Month Free · Then $9.99 / mo',
+      title: 'Artist Tier',
+      price: '30 Days Free · Then $9.99 / mo',
       description:
         'Unlock unlimited uploads, custom storefront branding, fan email capture, and a 10% platform commission—$0.00 due today.',
       features: [
@@ -280,12 +280,12 @@ export default function CreateAdLandingPage() {
       ],
     },
     label: {
-      title: 'Imprint & Label',
-      price: '1st Month Free · Then $29.99 / mo',
+      title: 'Label Tier',
+      price: '30 Days Free · Then $29.99 / mo',
       description:
         'Manage your entire artist roster, shared pipelines, and direct payouts at a 5% platform commission—$0.00 due today.',
       features: [
-        'First 30 days completely free — no promo code needed',
+        'First 30 days completely free, cancel anytime',
         'Centralized management for full multi-artist rosters',
         '5% platform commission split (keep 95% across catalogs)',
         'Unified roster growth tracking & analytics',
