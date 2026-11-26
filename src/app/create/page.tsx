@@ -488,7 +488,7 @@ export default function CreateAdLandingPage() {
                         : 'bg-[#111] border-[#222] text-[#888] hover:border-[#444]'
                     }`}
                   >
-                    <span>{tier === 'free' ? 'Free Hub' : tier === 'artist' ? 'Artist' : 'Label'}</span>
+                    <span>{tier === 'free' ? 'Free Tier' : tier === 'artist' ? 'Artist' : 'Label'}</span>
                     <span className="text-[9px] font-semibold">
                       {isLockedFree ? 'Downgrade Option' : '30 Days Free'}
                     </span>
