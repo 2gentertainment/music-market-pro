@@ -410,9 +410,9 @@ export default function CreateAdLandingPage() {
       {!isLoggedIn && (
         <section className="w-full max-w-[1100px] mx-auto px-6 py-14 border-t border-[#1f1f1f]">
           <div className="text-center mb-10">
-            <h2 className="text-[28px] font-bold tracking-tight mb-2">One Link. Three Growth Engines.</h2>
+            <h2 className="text-[28px] font-bold tracking-tight mb-2">One Link, Three Growth Engines</h2>
             <p className="text-[#888] text-[14px]">
-              Built for independent artists and labels, Designed to convert listeners.
+              Built for artists and labels, Designed to convert listeners.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -431,7 +431,7 @@ export default function CreateAdLandingPage() {
               </div>
               <h3 className="text-[16px] font-bold text-white">Sell Singles &amp; Albums Directly</h3>
               <p className="text-[13px] text-[#888] leading-relaxed">
-                Sell high-quality singles and full album bundles right from your player with instant payouts—keep 90% on Artist or 95% on Label.
+                Sell high-quality singles and full album bundles right from your player with instant payouts. Customers receive Download,Stream Links & Ringtones From each purchase. Keep 90% revenue on Artist or 95% on Label.
               </p>
             </div>
             <div className="bg-[#161616] border border-[#222] p-6 rounded-[16px] flex flex-col gap-3">
@@ -440,7 +440,7 @@ export default function CreateAdLandingPage() {
               </div>
               <h3 className="text-[16px] font-bold text-white">Capture Fan Data Effortlessly</h3>
               <p className="text-[13px] text-[#888] leading-relaxed">
-                Every visitor can subscribe directly inside your player so you own your audience for future releases, merch sales,etc.
+                Every visitor can subscribe directly inside your player so you own your audience for future releases, merch sales, etc.
               </p>
             </div>
           </div>
