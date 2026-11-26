@@ -322,7 +322,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   subtitle: { fontSize: '13px', color: '#888' },
   inputGroup: { marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', textAlign: 'left' },
   label: { display: 'block', fontSize: '12px', color: '#aaa', fontWeight: 'bold', marginBottom: '0.4rem' },
-  input: { width: '100%', background: '#111', border: '1px solid #2e2e2e', borderRadius: '10px', padding: '0.75rem 1rem', fontSize: '14px', color: '#fff', outline: 'none', boxSizing: 'border-box' },
+  input: { width: '100%', background: '#111', border: '1px solid #2e2e2e', borderRadius: '10px', padding: '0.75rem 1rem', fontSize: '16px', color: '#fff', outline: 'none', boxSizing: 'border-box', touchAction: 'manipulation' },
   slugHint: { fontSize: '11px', color: '#888', marginTop: '0.35rem' },
   mismatchText: { fontSize: '11px', color: '#f87171', marginTop: '0.35rem' },
   errorBanner: { background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#f87171', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '12px', marginBottom: '1.25rem' },
