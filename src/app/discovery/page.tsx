@@ -487,7 +487,6 @@ export default function DiscoverPage() {
                 </Link>
               )}
               {track.genre && <span>• {track.genre}</span>}
-              <span>• {playCounts[String(track.id)] || 0} plays</span>
             </div>
           </div>
         </div>
@@ -731,10 +730,11 @@ export default function DiscoverPage() {
                                   @{handle}
                                 </Link>
                               )}
-                              <p className="text-[11px] text-neutral-400 truncate">
-                                {playCounts[String(track.id)] || 0} plays
-                                {track.genre ? ` • ${track.genre}` : ''}
-                              </p>
+                              {track.genre && (
+                                <p className="text-[11px] text-neutral-400 truncate">
+                                  {track.genre}
+                                </p>
+                              )}
                             </div>
 
                             {/* DSP Streaming Pills */}
