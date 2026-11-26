@@ -361,7 +361,7 @@ export default function HomePage() {
         <div className="inline-block bg-[#1a1a1a] border border-[#333] text-[#ff8c00] text-[12px] font-bold px-3 py-1 rounded-full mb-4 tracking-wide uppercase">
           Direct-To-Fan-Solutions
         </div>
-        <h1 className="text-[36px] md:text-[52px] font-extrabold tracking-tight mb-4 leading-tight">
+        <h1 className="text-[30px] md:text-[46px] font-extrabold tracking-tight mb-4 leading-tight">
           Music Market is Your <span className="text-[#ff8c00]">Bridge</span>
         </h1>
         <p className="text-[#aaa] text-[15px] md:text-[17px] max-w-[680px] mb-8 leading-relaxed">
