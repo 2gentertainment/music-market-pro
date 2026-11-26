@@ -120,7 +120,7 @@ export default function DiscoverPage() {
     updateTop10ScrollButtons();
     window.addEventListener('resize', updateTop10ScrollButtons);
     return () => window.removeEventListener('resize', updateTop10ScrollButtons);
-  }, [top10Singles.length, loading]);
+  }, [tracks.length, playCounts, searchQuery, selectedGenre, loading]);
 
   const scrollTop10By = (direction: 'prev' | 'next') => {
     const el = top10CarouselRef.current;
