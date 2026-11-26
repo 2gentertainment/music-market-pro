@@ -273,7 +273,7 @@ export default function CreateAdLandingPage() {
       description:
         'Unlock unlimited uploads, custom storefront branding, fan email capture, and a 10% platform commission—$0.00 due today.',
       features: [
-        'First 30 days completely free — no promo code needed',
+        'First 30 days completely free - no promo code needed',
         'Unlimited catalog uploads & custom player branding',
         '10% platform commission split (keep 90% of direct sales)',
         'Built-in audience capture & subscriber fan lists',
