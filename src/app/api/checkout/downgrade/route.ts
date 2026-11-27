@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { syncCreatorToAweber } from '@/lib/aweber';
+
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
@@ -218,6 +220,20 @@ export async function POST(req: Request) {
           profileId: targetProfile.id,
         },
       });
+
+      const subscriberEmail = targetProfile.email || email;
+      if (subscriberEmail) {
+        try {
+          await syncCreatorToAweber({
+            email: subscriberEmail,
+            tier: targetProfile.tier || 'free',
+            handle: targetProfile.artist_handle || targetProfile.handle || undefined,
+            tags: ['trial-cancelled'],
+          });
+        } catch (aweberErr) {
+          console.error('AWeber sync warning (downgrade cancel):', aweberErr);
+        }
+      }
 
       // User keeps paid access until current_period_end; webhook sets tier = 'free' on customer.subscription.deleted
       return NextResponse.json({
