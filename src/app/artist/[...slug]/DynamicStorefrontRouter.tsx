@@ -164,15 +164,14 @@ export default function DynamicStorefrontRouter() {
           normTarget === normProfileArtistHandle &&
           normProfileArtistHandle !== normProfileHandle;
 
-        const isLabelView =
-          !forcePlayerView &&
+        const isLabelAccount =
           !isExplicitArtistHandleMatch &&
           (activeProfile.tier === 'label' ||
             (!targetArtistHandle && normalizeHandle(primarySlug) === '2g-imprint'));
 
         let lookupHandles: string[] = [];
 
-        if (isLabelView) {
+        if (isLabelAccount) {
           const { data: rosterArtists } = await _supabase
             .from('profiles')
             .select('handle, artist_handle')
@@ -185,7 +184,7 @@ export default function DynamicStorefrontRouter() {
           ]);
         } else {
           lookupHandles = expandHandleVariants(
-            isExplicitArtistHandleMatch || forcePlayerView
+            isExplicitArtistHandleMatch
               ? [targetArtistHandle || activeProfile.artist_handle || activeProfile.handle]
               : [targetArtistHandle, activeProfile.handle, activeProfile.artist_handle]
           );
@@ -285,17 +284,24 @@ export default function DynamicStorefrontRouter() {
   }
 
 
-  // 3. RENDER INDIVIDUAL ARTIST AUDIO PLAYER
-  const artistHandleToUse = targetArtistHandle || primarySlug;
-  const artistTier = profile?.tier === 'label' ? 'artist' : (profile?.tier || 'artist');
+  // 3. RENDER AUDIO PLAYER (INDIVIDUAL ARTIST OR FULL LABEL ROSTER)
+  const isLabelRosterPlayer =
+    forcePlayerView &&
+    !isTargetingOwnerArtistHandle &&
+    (profile?.tier === 'label' ||
+      (!targetArtistHandle && Boolean(primarySlug)));
 
+  const artistHandleToUse = isLabelRosterPlayer
+    ? (profile?.display_name || profile?.handle || primarySlug)
+    : (targetArtistHandle || primarySlug);
+  const resolvedPlayerTier = isLabelRosterPlayer ? 'label' : (profile?.tier || 'artist');
 
   return (
     <div className="h-[100dvh] w-full bg-neutral-950 flex flex-col items-center justify-center overflow-hidden p-0 touch-manipulation">
       <AudioPlayer
         artistHandle={artistHandleToUse}
         initialTracks={tracks}
-        tier={artistTier}
+        tier={resolvedPlayerTier}
       />
     </div>
   );
