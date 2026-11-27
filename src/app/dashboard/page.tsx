@@ -121,6 +121,8 @@ function DashboardContent() {
     ? `${baseUrl}/artist/${labelCorporateHandle}`
     : `${baseUrl}/artist/${personalArtistHandle}`;
 
+  const rosterPlayerUrl = `${baseUrl}/artist/${labelCorporateHandle}?view=player`;
+
   const handleCopy = (url: string, key: string) => {
     navigator.clipboard.writeText(url);
     setCopiedKey(key);
@@ -1260,18 +1262,35 @@ const displayedAlbums = showAllAlbums ? filteredAlbums : filteredAlbums.slice(0,
               <h3 className="font-semibold text-lg text-[#ff8c00]">Active Artist Roster</h3>
               <p className="text-sm text-neutral-400">Manage artists signed under your Label Executive account.</p>
             </div>
-            <button 
-              onClick={() => {
-                if (rosterCount >= 4) {
-                  alert('Roster limit reached! Label tier accounts are capped at 4 artists.');
-                  return;
-                }
-                setIsAddArtistModalOpen(true);
-              }}
-              className="bg-neutral-800 hover:bg-neutral-700 text-emerald-400 font-bold px-4 py-2 rounded-xl text-xs border border-neutral-700 cursor-pointer flex items-center gap-1.5"
-            >
-              + Add Artist
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => handleCopy(rosterPlayerUrl, 'roster_player_header')}
+                className="bg-neutral-800 hover:bg-neutral-700 text-[#ff8c00] font-bold px-3.5 py-2 rounded-xl text-xs border border-neutral-700 cursor-pointer transition-all"
+              >
+                {copiedKey === 'roster_player_header' ? 'Copied Roster Player!' : 'Copy Roster Player'}
+              </button>
+              <a
+                href={rosterPlayerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold px-3.5 py-2 rounded-xl text-xs border border-neutral-700 transition-all"
+              >
+                Open Roster Player &rarr;
+              </a>
+              <button 
+                onClick={() => {
+                  if (rosterCount >= 4) {
+                    alert('Roster limit reached! Label tier accounts are capped at 4 artists.');
+                    return;
+                  }
+                  setIsAddArtistModalOpen(true);
+                }}
+                className="bg-neutral-800 hover:bg-neutral-700 text-emerald-400 font-bold px-4 py-2 rounded-xl text-xs border border-neutral-700 cursor-pointer flex items-center gap-1.5"
+              >
+                + Add Artist
+              </button>
+            </div>
           </div>
 
                     <div className="bg-neutral-950/80 border border-neutral-800 rounded-xl px-3.5 py-2.5 text-[11px] text-neutral-400">
@@ -1918,6 +1937,38 @@ const displayedAlbums = showAllAlbums ? filteredAlbums : filteredAlbums.slice(0,
                   </button>
                 </div>
               </div>
+
+              {userTier === 'label' && (
+                <div className="space-y-1.5 bg-neutral-950 p-4 rounded-2xl border border-[#ff8c00]/30">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-xs font-semibold text-[#ff8c00]">
+                      Full Roster Audio Player (All Artists in One Player)
+                    </label>
+                    <a
+                      href={rosterPlayerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] font-bold text-neutral-300 hover:text-[#ff8c00] underline"
+                    >
+                      Open &rarr;
+                    </a>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={rosterPlayerUrl}
+                      className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-3 py-2 text-base sm:text-xs text-neutral-300 focus:outline-none"
+                    />
+                    <button
+                      onClick={() => handleCopy(rosterPlayerUrl, 'roster_player')}
+                      className="bg-neutral-800 hover:bg-neutral-700 text-[#ff8c00] font-extrabold px-4 py-2 rounded-xl text-xs whitespace-nowrap cursor-pointer border border-[#ff8c00]/40 transition-all"
+                    >
+                      {copiedKey === 'roster_player' ? 'Copied Player!' : 'Copy Player'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {userTier === 'label' && (
                 <div className="space-y-3 pt-2">
