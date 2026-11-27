@@ -109,6 +109,9 @@ export default function AudioPlayer({
   const [buyModalOpen, setBuyModalOpen] = useState(false);
   const [trackToBuy, setTrackToBuy] = useState<any>(null);
 
+  // Label Multi-Artist Filter State
+  const [selectedArtistFilter, setSelectedArtistFilter] = useState<string>('all');
+
   const currentTrack = activePlaylist[currentIndex] || null;
   const isPlayingRef = useRef<boolean>(false);
   const currentTrackRef = useRef<any>(null);
@@ -433,7 +436,7 @@ export default function AudioPlayer({
 
     let filteredData = formattedTracks.filter((track) => !track.deleted_at);
 
-    if (artistHandle && (!initialTracks || initialTracks.length === 0)) {
+    if (artistHandle && (!initialTracks || initialTracks.length === 0) && currentTier !== 'label') {
       const cleanSlug = artistHandle.toLowerCase().trim();
       filteredData = formattedTracks.filter((track) => {
         const textHandle = track.artist_handle ? track.artist_handle.toLowerCase().trim() : '';
@@ -704,7 +707,11 @@ export default function AudioPlayer({
 
     setSubmittingFan(true);
     try {
-      const activeHandle = (artistHandle || currentTrack?.artist_handle || '')
+      const activeHandle = (
+        currentTier === 'label'
+          ? currentTrack?.artist_handle || artistHandle || ''
+          : artistHandle || currentTrack?.artist_handle || ''
+      )
         .trim()
         .toLowerCase();
       if (!activeHandle) {
@@ -756,13 +763,18 @@ export default function AudioPlayer({
     setTrackToBuy(track);
     setSubscribeBoxOpen(false);
 
+       const checkoutHandle =
+      currentTier === 'label'
+        ? track.artist_handle || artistHandle
+        : artistHandle || track.artist_handle;
+
     if (track.album_name) {
       setBuyModalOpen(true);
     } else {
       executeCheckout({
         itemType: 'single',
         trackId: String(track.id),
-        artistHandle: artistHandle || track.artist_handle,
+        artistHandle: checkoutHandle,
         price: track.price,
         title: track.title,
       });
@@ -823,6 +835,32 @@ export default function AudioPlayer({
     const indexB = masterPlaylist.find((t) => trackIncludesAlbum(t, b))?.album_index ?? 9999;
     return indexA - indexB;
   });
+
+  const rosterArtists = Array.from(
+    new Set(
+      masterPlaylist
+        .map((t) => (t.artist_handle ? String(t.artist_handle).trim() : ''))
+        .filter(Boolean)
+    )
+  );
+
+  function handleSelectRosterArtist(handleKey: string) {
+    setSelectedArtistFilter(handleKey);
+    setSelectedAlbum(null);
+    setViewMode('tracks');
+
+    if (handleKey === 'all') {
+      setActivePlaylist(masterPlaylist);
+      if (masterPlaylist.length > 0) loadTrack(masterPlaylist[0], 0, false);
+      return;
+    }
+
+    const filtered = masterPlaylist.filter(
+      (t) => String(t.artist_handle || '').trim().toLowerCase() === handleKey.toLowerCase()
+    );
+    setActivePlaylist(filtered);
+    if (filtered.length > 0) loadTrack(filtered[0], 0, false);
+  }
 
   return (
     <div className="player-card bg-[#121212] text-white w-full max-w-[480px] h-[100dvh] p-4 flex flex-col justify-between overflow-hidden box-border mx-auto relative touch-manipulation">
@@ -1045,6 +1083,39 @@ export default function AudioPlayer({
 
       {/* Playlist / Albums Navigation Drawer */}
       <div className="inline-playlist-section bg-[#161616] border border-[#262626] rounded-[12px] p-[8px] mb-[8px] flex-1 min-h-[80px] overflow-hidden flex flex-col">
+        {currentTier === 'label' && rosterArtists.length > 1 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 mb-1.5 border-b border-[#222] flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => handleSelectRosterArtist('all')}
+              className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap cursor-pointer transition-all ${
+                selectedArtistFilter === 'all'
+                  ? 'bg-[#ff8c00] text-black'
+                  : 'bg-[#202020] text-[#888] hover:text-white'
+              }`}
+            >
+              All Artists
+            </button>
+            {rosterArtists.map((handleName) => {
+              const isSelected = selectedArtistFilter.toLowerCase() === handleName.toLowerCase();
+              return (
+                <button
+                  key={handleName}
+                  type="button"
+                  onClick={() => handleSelectRosterArtist(handleName)}
+                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap cursor-pointer transition-all ${
+                    isSelected
+                      ? 'bg-[#ff8c00] text-black'
+                      : 'bg-[#202020] text-[#888] hover:text-white'
+                  }`}
+                >
+                  @{handleName}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {currentTier !== 'free' && uniqueAlbums.length > 0 && (
           <div className="flex items-center gap-2 mb-2 pb-1 border-b border-[#222]">
             <button
@@ -1372,7 +1443,10 @@ export default function AudioPlayer({
                   executeCheckout({
                     itemType: 'single',
                     trackId: String(trackToBuy.id),
-                    artistHandle: artistHandle || trackToBuy.artist_handle,
+                    artistHandle:
+                      currentTier === 'label'
+                        ? trackToBuy.artist_handle || artistHandle
+                        : artistHandle || trackToBuy.artist_handle,
                     price: trackToBuy.price,
                     title: trackToBuy.title,
                   });
