@@ -7,7 +7,7 @@ const SITE_URL = (
 ).replace(/\/+$/, '');
 
 const OG_IMAGE_URL =
-  'https://27593217-482041110881488807.preview.editmysite.com/uploads/2/7/5/9/27593217/youtube-banner-music-market-01-artboard-1_orig.jpg';
+  'https://www.2g-ent.com/uploads/2/7/5/9/27593217/youtube-banner-music-market-01-artboard-2_orig.jpg';
 
 export const metadata: Metadata = {
   title: 'Music Market — Claim Your First Month Free (30-Day Trial)',
