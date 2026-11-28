@@ -21,6 +21,7 @@ interface AudioPlayerProps {
   demoIntercept?: boolean;
   onDemoAction?: (feature: DemoFeatureKey) => void;
   demoFooterContent?: React.ReactNode;
+  showLabelPromoStrip?: boolean;
 }
 
 const FALLBACK_COVER_ART =
@@ -42,6 +43,7 @@ export default function AudioPlayer({
   demoIntercept = false,
   onDemoAction,
   demoFooterContent,
+  showLabelPromoStrip = false,
 }: AudioPlayerProps) {
   const triggerDemoFeature = (key: DemoFeatureKey): boolean => {
     if (demoMode && onDemoAction) {
@@ -1352,6 +1354,76 @@ export default function AudioPlayer({
       {/* Demo Mode Tutorial Dock (Market Page Only) */}
       {demoMode && demoFooterContent ? (
         <div className="pt-1 pb-[2px] flex-shrink-0">{demoFooterContent}</div>
+      ) : currentTier === 'label' && showLabelPromoStrip ? (
+        <div className="group h-[24px] pt-1 overflow-hidden relative flex-shrink-0">
+          <style>{`
+            @keyframes mmLabelPromoVerticalCycle {
+              0%, 65% {
+                transform: translateY(0);
+              }
+              70%, 95% {
+                transform: translateY(-20px);
+              }
+              100% {
+                transform: translateY(0);
+              }
+            }
+            @keyframes mmLabelPromoGlowPulse {
+              0%, 100% {
+                text-shadow:
+                  0 0 7px rgba(255, 140, 0, 0.45),
+                  0 0 14px rgba(46, 204, 113, 0.15);
+              }
+              50% {
+                text-shadow:
+                  0 0 12px rgba(255, 140, 0, 0.8),
+                  0 0 22px rgba(46, 204, 113, 0.32);
+              }
+            }
+            .mm-label-promo-track {
+              display: flex;
+              flex-direction: column;
+              animation: mmLabelPromoVerticalCycle 15s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+            }
+            .group:hover .mm-label-promo-track {
+              animation-play-state: paused;
+            }
+            .mm-label-promo-hype {
+              font-size: 10.5px;
+              font-weight: 700;
+              letter-spacing: 0.4px;
+              color: #ff9d2e;
+              animation: mmLabelPromoGlowPulse 2s ease-in-out infinite;
+            }
+          `}</style>
+          <a
+            href="/create"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block w-full h-full no-underline"
+          >
+            <div className="mm-label-promo-track">
+              <div className="h-[20px] flex items-center justify-center gap-1.5 text-[10px] text-[#888] tracking-[0.3px] flex-shrink-0">
+                <span className="inline-flex items-end gap-[2px] h-[11px]" aria-hidden="true">
+                  <span className="w-[2px] h-full bg-[#ff8c00]" />
+                  <span className="w-[2px] h-[7px] bg-[#ff8c00]" />
+                  <span className="w-[2px] h-[5px] bg-[#ff8c00]" />
+                  <span className="w-[2px] h-[4px] bg-[#ff8c00]" />
+                  <span className="w-[2px] h-[5px] bg-[#ff8c00]" />
+                  <span className="w-[2px] h-[9px] bg-[#2ecc71]" />
+                  <span className="w-[2px] h-full bg-[#ff8c00]" />
+                </span>
+                <span>Powered by</span>
+                <span className="font-bold text-white">Music Market</span>
+                <span>&middot;</span>
+                <span className="underline text-[#ff8c00] font-semibold">Create Your Account Now</span>
+              </div>
+              <div className="h-[20px] flex items-center justify-center flex-shrink-0">
+                <span className="mm-label-promo-hype">More Streams, More Sales, More Fans</span>
+              </div>
+            </div>
+          </a>
+        </div>
       ) : (
         /* Free Tier Artist Acquisition Footer */
         currentTier === 'free' && (
