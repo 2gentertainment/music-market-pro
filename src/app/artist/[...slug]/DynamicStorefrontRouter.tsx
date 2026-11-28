@@ -50,6 +50,8 @@ interface Profile {
   display_name?: string;
   avatar_url?: string;
   logo_url?: string;
+  email?: string | null;
+  is_super_admin?: boolean;
   tier: 'free' | 'artist' | 'label';
   stripe_account_id?: string;
 }
@@ -291,6 +293,10 @@ export default function DynamicStorefrontRouter() {
     (profile?.tier === 'label' ||
       (!targetArtistHandle && Boolean(primarySlug)));
 
+  const isSuperAdminAccount =
+    Boolean(profile?.is_super_admin) ||
+    normalizeHandle(profile?.email) === 'lakimgolden@gmail.com';
+
   const artistHandleToUse = isLabelRosterPlayer
     ? (profile?.display_name || profile?.handle || primarySlug)
     : (targetArtistHandle || primarySlug);
@@ -302,6 +308,7 @@ export default function DynamicStorefrontRouter() {
         artistHandle={artistHandleToUse}
         initialTracks={tracks}
         tier={resolvedPlayerTier}
+        showLabelPromoStrip={isSuperAdminAccount}
       />
     </div>
   );
