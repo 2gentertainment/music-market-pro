@@ -1061,7 +1061,7 @@ export default function AudioPlayer({
                 </button>
               )}
 
-            {currentTrack?.price && Number(currentTrack.price) > 0 && (
+            {Number(currentTrack?.price) > 0 && (
               <button
                 className="buy-trigger-btn bg-[#1b3a2b] text-[#2ecc71] border border-[#27ae60] p-[8px_12px] font-bold rounded-[10px] flex-1 text-[12px] flex items-center justify-center gap-[6px] cursor-pointer hover:border-[#2ecc71]"
                 onClick={() => handleBuyClick(currentTrack)}
