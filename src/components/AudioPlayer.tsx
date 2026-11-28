@@ -821,6 +821,14 @@ export default function AudioPlayer({
       .map((s: string) => s.trim())
       .includes(albumName);
 
+  const rosterArtists = Array.from(
+    new Set(
+      masterPlaylist
+        .map((t) => (t.artist_handle ? String(t.artist_handle).trim() : ''))
+        .filter(Boolean)
+    )
+  );
+
   const isLabelRosterMode = currentTier === 'label' && rosterArtists.length > 1;
 
   const albumSourceTracks =
@@ -848,14 +856,6 @@ export default function AudioPlayer({
     const indexB = albumSourceTracks.find((t) => trackIncludesAlbum(t, b))?.album_index ?? 9999;
     return indexA - indexB;
   });
-
-  const rosterArtists = Array.from(
-    new Set(
-      masterPlaylist
-        .map((t) => (t.artist_handle ? String(t.artist_handle).trim() : ''))
-        .filter(Boolean)
-    )
-  );
 
   function handleSelectRosterArtist(handleKey: string) {
     setSelectedArtistFilter(handleKey);
