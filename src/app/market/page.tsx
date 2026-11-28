@@ -42,9 +42,9 @@ const FEATURE_GUIDE: Record<
   },
   albums_view: {
     badge: 'Projects & Albums',
-    title: 'Switch Between All Tracks & Albums',
+    title: 'Browse Artist Projects & Albums',
     summary:
-      'Lets listeners browse all tracks or switch into album/project groupings to play a full project in order.',
+      'Once an artist handle is selected, if that artist has albums/projects, listeners can open their project list to play a full release in order.',
   },
   share_track: {
     badge: 'Share Link',
@@ -169,9 +169,11 @@ function MarketContent() {
 
       <div className="w-full flex-1 min-h-0 flex justify-center items-center">
         <AudioPlayer
-          artistHandle={artistHandle}
+          artistHandle={
+            artistHandle || (!artistHandle && tracks.length > 0 ? 'Label Roster' : undefined)
+          }
           initialTracks={tracks.length > 0 ? tracks : undefined}
-          tier="artist"
+          tier={artistHandle ? 'artist' : 'label'}
           demoMode={true}
           demoIntercept={true}
           onDemoAction={handleFeatureSelect}
