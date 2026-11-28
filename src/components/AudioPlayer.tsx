@@ -821,9 +821,20 @@ export default function AudioPlayer({
       .map((s: string) => s.trim())
       .includes(albumName);
 
+  const isLabelRosterMode = currentTier === 'label' && rosterArtists.length > 1;
+
+  const albumSourceTracks =
+    isLabelRosterMode && selectedArtistFilter !== 'all'
+      ? masterPlaylist.filter(
+          (t) =>
+            String(t.artist_handle || '').trim().toLowerCase() ===
+            selectedArtistFilter.toLowerCase()
+        )
+      : masterPlaylist;
+
   const uniqueAlbums = Array.from(
     new Set(
-      masterPlaylist.flatMap((t) =>
+      albumSourceTracks.flatMap((t) =>
         t.album_name
           ? String(t.album_name)
               .split(',')
@@ -833,8 +844,8 @@ export default function AudioPlayer({
       )
     )
   ).sort((a, b) => {
-    const indexA = masterPlaylist.find((t) => trackIncludesAlbum(t, a))?.album_index ?? 9999;
-    const indexB = masterPlaylist.find((t) => trackIncludesAlbum(t, b))?.album_index ?? 9999;
+    const indexA = albumSourceTracks.find((t) => trackIncludesAlbum(t, a))?.album_index ?? 9999;
+    const indexB = albumSourceTracks.find((t) => trackIncludesAlbum(t, b))?.album_index ?? 9999;
     return indexA - indexB;
   });
 
@@ -1123,43 +1134,60 @@ export default function AudioPlayer({
           </div>
         )}
 
-        {currentTier !== 'free' && uniqueAlbums.length > 0 && (
-          <div className="flex items-center gap-2 mb-2 pb-1 border-b border-[#222]">
-            <button
-              onClick={() => {
-                if (triggerDemoFeature('albums_view')) return;
-                setViewMode('tracks');
-                setActivePlaylist(masterPlaylist);
-                setSelectedAlbum(null);
-              }}
-              className={`text-[10px] font-bold px-2.5 py-1 rounded-md cursor-pointer transition-all ${
-                viewMode === 'tracks' ? 'bg-[#ff8c00] text-black' : 'bg-[#202020] text-[#888] hover:text-white'
-              }`}
-            >
-              All Tracks
-            </button>
-            <button
-              onClick={() => {
-                if (triggerDemoFeature('albums_view')) return;
-                setViewMode('albums');
-              }}
-              className={`text-[10px] font-bold px-2.5 py-1 rounded-md cursor-pointer transition-all ${
-                viewMode === 'albums' ? 'bg-[#ff8c00] text-black' : 'bg-[#202020] text-[#888] hover:text-white'
-              }`}
-            >
-              Albums / Projects ({uniqueAlbums.length})
-            </button>
-            {selectedAlbum && (
-              <span className="text-[10px] text-[#ff8c00] truncate ml-auto">Proj: {selectedAlbum}</span>
-            )}
-          </div>
-        )}
+        {currentTier !== 'free' &&
+          uniqueAlbums.length > 0 &&
+          (!isLabelRosterMode || selectedArtistFilter !== 'all') && (
+            <div className="flex items-center gap-2 mb-2 pb-1 border-b border-[#222]">
+              {!isLabelRosterMode && (
+                <button
+                  onClick={() => {
+                    if (triggerDemoFeature('albums_view')) return;
+                    setViewMode('tracks');
+                    setActivePlaylist(masterPlaylist);
+                    setSelectedAlbum(null);
+                  }}
+                  className={`text-[10px] font-bold px-2.5 py-1 rounded-md cursor-pointer transition-all ${
+                    viewMode === 'tracks'
+                      ? 'bg-[#ff8c00] text-black'
+                      : 'bg-[#202020] text-[#888] hover:text-white'
+                  }`}
+                >
+                  All Tracks
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (triggerDemoFeature('albums_view')) return;
+                  if (isLabelRosterMode && viewMode === 'albums') {
+                    handleSelectRosterArtist(selectedArtistFilter);
+                    return;
+                  }
+                  setSelectedAlbum(null);
+                  setViewMode('albums');
+                }}
+                className={`text-[10px] font-bold px-2.5 py-1 rounded-md cursor-pointer transition-all ${
+                  viewMode === 'albums'
+                    ? 'bg-[#ff8c00] text-black'
+                    : 'bg-[#202020] text-[#888] hover:text-white'
+                }`}
+              >
+                Albums / Projects ({uniqueAlbums.length})
+              </button>
+              {selectedAlbum && (
+                <span className="text-[10px] text-[#ff8c00] truncate ml-auto">
+                  Proj: {selectedAlbum}
+                </span>
+              )}
+            </div>
+          )}
 
         <div className="inline-tracks-list flex flex-col gap-[6px] overflow-y-auto flex-1">
           {currentTier !== 'free' && viewMode === 'albums' && !selectedAlbum ? (
             <div className="space-y-2">
               {uniqueAlbums.map((albumName, idx) => {
-                const albumTracks = masterPlaylist.filter((t) => trackIncludesAlbum(t, albumName));
+                const albumTracks = albumSourceTracks.filter((t) =>
+                  trackIncludesAlbum(t, albumName)
+                );
                 const albumThumb =
                   albumTracks.find((t) => t.artwork_url)?.artwork_url || FALLBACK_COVER_ART;
 
