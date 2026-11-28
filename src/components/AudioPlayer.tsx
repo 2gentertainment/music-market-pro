@@ -947,7 +947,10 @@ export default function AudioPlayer({
                     )}
                   </div>
                   <span className="text-[11px] text-[#ff8c00] truncate">
-                    @{artistHandle || track.artist_handle}
+                    @
+                    {currentTier === 'label'
+                      ? track.artist_handle || artistHandle
+                      : artistHandle || track.artist_handle}
                   </span>
                 </div>
               </div>
@@ -976,11 +979,13 @@ export default function AudioPlayer({
         </h3>
         <div className="flex items-center justify-center gap-2 m-0">
           <p className="text-[11px] text-[#ff8c00] font-medium m-0">
-            {artistHandle
-              ? `@${artistHandle}`
-              : currentTrack?.artist_handle
-              ? `@${currentTrack.artist_handle}`
-              : 'Music Market'}
+            {(() => {
+              const displayedHandle =
+                currentTier === 'label'
+                  ? currentTrack?.artist_handle || artistHandle
+                  : artistHandle || currentTrack?.artist_handle;
+              return displayedHandle ? `@${displayedHandle}` : 'Music Market';
+            })()}
           </p>
 
           {currentTrack?.genre && (
@@ -1226,7 +1231,10 @@ export default function AudioPlayer({
                       )}
                     </div>
                     <div className="playlist-item-artist text-[11px] text-[#ff8c00] truncate">
-                      @{artistHandle || track.artist_handle}
+                      @
+                      {currentTier === 'label'
+                        ? track.artist_handle || artistHandle
+                        : artistHandle || track.artist_handle}
                     </div>
                   </div>
                 </div>
